@@ -33,7 +33,3 @@ go.work.sum
 
 /logs
 /build
-
-/ent/*
-!/ent/schema
-!/ent/generate.go

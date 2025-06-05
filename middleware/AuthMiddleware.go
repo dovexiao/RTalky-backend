@@ -8,9 +8,13 @@ import (
 	"strings"
 )
 
-var jwtUtils = utils.NewJWTUtils(os.Getenv("JWT_SECRET"), os.Getenv("JWT_EXPIRATION_TIME_MS"))
+var jwtUtils *utils.JWTUtils
 
 func AuthMiddleware(next echo.HandlerFunc) echo.HandlerFunc {
+	if jwtUtils == nil {
+		jwtUtils = utils.NewJWTUtils(os.Getenv("JWT_SECRET"), os.Getenv("JWT_EXPIRATION_TIME_MS"))
+	}
+
 	return func(c echo.Context) error {
 		authHeader := c.Request().Header.Get("Authorization")
 		if authHeader == "" {

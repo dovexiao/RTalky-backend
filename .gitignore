@@ -36,3 +36,4 @@ go.work.sum
 
 /ent/*
 !/ent/schema
+!/ent/generate.go

@@ -1,15 +1,14 @@
 package schema
 
 import (
-	"context"
-
 	"RTalky/ent/hook"
 	"RTalky/utils"
+	"golang.org/x/crypto/bcrypt"
+	"golang.org/x/net/context"
 
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/entsql"
 	"entgo.io/ent/schema/field"
-	"golang.org/x/crypto/bcrypt"
 )
 
 // User holds the schema definition for the User entity.

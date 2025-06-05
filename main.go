@@ -9,15 +9,17 @@ import (
 	"os"
 )
 
-func main() {
-	err := godotenv.Load()
+func init() {
+	err := godotenv.Load(".env")
 	if err != nil {
-		logrus.Fatal("Error loading .env file")
+		logrus.Fatal("Error loading .env file", err.Error())
 	}
 
 	// 初始化Logger
 	logger.SetupLogger("./logs", logrus.DebugLevel)
+}
 
+func main() {
 	e := echo.New()
 
 	routes.Register(e)

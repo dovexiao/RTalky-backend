@@ -8,12 +8,28 @@ import (
 )
 
 var (
+	// OauthsColumns holds the columns for the "oauths" table.
+	OauthsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt, Increment: true},
+		{Name: "provider", Type: field.TypeString},
+	}
+	// OauthsTable holds the schema information for the "oauths" table.
+	OauthsTable = &schema.Table{
+		Name:       "oauths",
+		Columns:    OauthsColumns,
+		PrimaryKey: []*schema.Column{OauthsColumns[0]},
+	}
 	// UsersColumns holds the columns for the "users" table.
 	UsersColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeInt, Increment: true},
+		{Name: "is_deleted", Type: field.TypeBool, Default: false},
 		{Name: "username", Type: field.TypeString, Unique: true},
 		{Name: "nickname", Type: field.TypeString},
 		{Name: "introduction", Type: field.TypeString},
+		{Name: "avatar", Type: field.TypeString},
+		{Name: "create_at", Type: field.TypeTime},
+		{Name: "last_login", Type: field.TypeTime},
+		{Name: "updated_at", Type: field.TypeTime},
 		{Name: "password", Type: field.TypeString},
 	}
 	// UsersTable holds the schema information for the "users" table.
@@ -24,6 +40,7 @@ var (
 	}
 	// Tables holds all the tables in the schema.
 	Tables = []*schema.Table{
+		OauthsTable,
 		UsersTable,
 	}
 )

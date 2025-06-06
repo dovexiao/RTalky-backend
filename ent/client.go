@@ -11,6 +11,7 @@ import (
 
 	"RTalky/ent/migrate"
 
+	"RTalky/ent/oauth"
 	"RTalky/ent/user"
 
 	"entgo.io/ent"
@@ -23,6 +24,8 @@ type Client struct {
 	config
 	// Schema is the client for creating, migrating and dropping schema.
 	Schema *migrate.Schema
+	// Oauth is the client for interacting with the Oauth builders.
+	Oauth *OauthClient
 	// User is the client for interacting with the User builders.
 	User *UserClient
 }
@@ -36,6 +39,7 @@ func NewClient(opts ...Option) *Client {
 
 func (c *Client) init() {
 	c.Schema = migrate.NewSchema(c.driver)
+	c.Oauth = NewOauthClient(c.config)
 	c.User = NewUserClient(c.config)
 }
 
@@ -129,6 +133,7 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 	return &Tx{
 		ctx:    ctx,
 		config: cfg,
+		Oauth:  NewOauthClient(cfg),
 		User:   NewUserClient(cfg),
 	}, nil
 }
@@ -149,6 +154,7 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 	return &Tx{
 		ctx:    ctx,
 		config: cfg,
+		Oauth:  NewOauthClient(cfg),
 		User:   NewUserClient(cfg),
 	}, nil
 }
@@ -156,7 +162,7 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 // Debug returns a new debug-client. It's used to get verbose logging on specific operations.
 //
 //	client.Debug().
-//		User.
+//		Oauth.
 //		Query().
 //		Count(ctx)
 func (c *Client) Debug() *Client {
@@ -178,22 +184,159 @@ func (c *Client) Close() error {
 // Use adds the mutation hooks to all the entity clients.
 // In order to add hooks to a specific client, call: `client.Node.Use(...)`.
 func (c *Client) Use(hooks ...Hook) {
+	c.Oauth.Use(hooks...)
 	c.User.Use(hooks...)
 }
 
 // Intercept adds the query interceptors to all the entity clients.
 // In order to add interceptors to a specific client, call: `client.Node.Intercept(...)`.
 func (c *Client) Intercept(interceptors ...Interceptor) {
+	c.Oauth.Intercept(interceptors...)
 	c.User.Intercept(interceptors...)
 }
 
 // Mutate implements the ent.Mutator interface.
 func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 	switch m := m.(type) {
+	case *OauthMutation:
+		return c.Oauth.mutate(ctx, m)
 	case *UserMutation:
 		return c.User.mutate(ctx, m)
 	default:
 		return nil, fmt.Errorf("ent: unknown mutation type %T", m)
+	}
+}
+
+// OauthClient is a client for the Oauth schema.
+type OauthClient struct {
+	config
+}
+
+// NewOauthClient returns a client for the Oauth from the given config.
+func NewOauthClient(c config) *OauthClient {
+	return &OauthClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `oauth.Hooks(f(g(h())))`.
+func (c *OauthClient) Use(hooks ...Hook) {
+	c.hooks.Oauth = append(c.hooks.Oauth, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `oauth.Intercept(f(g(h())))`.
+func (c *OauthClient) Intercept(interceptors ...Interceptor) {
+	c.inters.Oauth = append(c.inters.Oauth, interceptors...)
+}
+
+// Create returns a builder for creating a Oauth entity.
+func (c *OauthClient) Create() *OauthCreate {
+	mutation := newOauthMutation(c.config, OpCreate)
+	return &OauthCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of Oauth entities.
+func (c *OauthClient) CreateBulk(builders ...*OauthCreate) *OauthCreateBulk {
+	return &OauthCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *OauthClient) MapCreateBulk(slice any, setFunc func(*OauthCreate, int)) *OauthCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &OauthCreateBulk{err: fmt.Errorf("calling to OauthClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*OauthCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &OauthCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for Oauth.
+func (c *OauthClient) Update() *OauthUpdate {
+	mutation := newOauthMutation(c.config, OpUpdate)
+	return &OauthUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *OauthClient) UpdateOne(o *Oauth) *OauthUpdateOne {
+	mutation := newOauthMutation(c.config, OpUpdateOne, withOauth(o))
+	return &OauthUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *OauthClient) UpdateOneID(id int) *OauthUpdateOne {
+	mutation := newOauthMutation(c.config, OpUpdateOne, withOauthID(id))
+	return &OauthUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for Oauth.
+func (c *OauthClient) Delete() *OauthDelete {
+	mutation := newOauthMutation(c.config, OpDelete)
+	return &OauthDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *OauthClient) DeleteOne(o *Oauth) *OauthDeleteOne {
+	return c.DeleteOneID(o.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *OauthClient) DeleteOneID(id int) *OauthDeleteOne {
+	builder := c.Delete().Where(oauth.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &OauthDeleteOne{builder}
+}
+
+// Query returns a query builder for Oauth.
+func (c *OauthClient) Query() *OauthQuery {
+	return &OauthQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeOauth},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a Oauth entity by its id.
+func (c *OauthClient) Get(ctx context.Context, id int) (*Oauth, error) {
+	return c.Query().Where(oauth.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *OauthClient) GetX(ctx context.Context, id int) *Oauth {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// Hooks returns the client hooks.
+func (c *OauthClient) Hooks() []Hook {
+	return c.hooks.Oauth
+}
+
+// Interceptors returns the client interceptors.
+func (c *OauthClient) Interceptors() []Interceptor {
+	return c.inters.Oauth
+}
+
+func (c *OauthClient) mutate(ctx context.Context, m *OauthMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&OauthCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&OauthUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&OauthUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&OauthDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown Oauth mutation op: %q", m.Op())
 	}
 }
 
@@ -334,9 +477,9 @@ func (c *UserClient) mutate(ctx context.Context, m *UserMutation) (Value, error)
 // hooks and interceptors per client, for fast access.
 type (
 	hooks struct {
-		User []ent.Hook
+		Oauth, User []ent.Hook
 	}
 	inters struct {
-		User []ent.Interceptor
+		Oauth, User []ent.Interceptor
 	}
 )

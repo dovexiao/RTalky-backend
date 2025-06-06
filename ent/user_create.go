@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
@@ -17,6 +18,20 @@ type UserCreate struct {
 	config
 	mutation *UserMutation
 	hooks    []Hook
+}
+
+// SetIsDeleted sets the "is_deleted" field.
+func (uc *UserCreate) SetIsDeleted(b bool) *UserCreate {
+	uc.mutation.SetIsDeleted(b)
+	return uc
+}
+
+// SetNillableIsDeleted sets the "is_deleted" field if the given value is not nil.
+func (uc *UserCreate) SetNillableIsDeleted(b *bool) *UserCreate {
+	if b != nil {
+		uc.SetIsDeleted(*b)
+	}
+	return uc
 }
 
 // SetUsername sets the "username" field.
@@ -34,6 +49,54 @@ func (uc *UserCreate) SetNickname(s string) *UserCreate {
 // SetIntroduction sets the "introduction" field.
 func (uc *UserCreate) SetIntroduction(s string) *UserCreate {
 	uc.mutation.SetIntroduction(s)
+	return uc
+}
+
+// SetAvatar sets the "avatar" field.
+func (uc *UserCreate) SetAvatar(s string) *UserCreate {
+	uc.mutation.SetAvatar(s)
+	return uc
+}
+
+// SetCreateAt sets the "create_at" field.
+func (uc *UserCreate) SetCreateAt(t time.Time) *UserCreate {
+	uc.mutation.SetCreateAt(t)
+	return uc
+}
+
+// SetNillableCreateAt sets the "create_at" field if the given value is not nil.
+func (uc *UserCreate) SetNillableCreateAt(t *time.Time) *UserCreate {
+	if t != nil {
+		uc.SetCreateAt(*t)
+	}
+	return uc
+}
+
+// SetLastLogin sets the "last_login" field.
+func (uc *UserCreate) SetLastLogin(t time.Time) *UserCreate {
+	uc.mutation.SetLastLogin(t)
+	return uc
+}
+
+// SetNillableLastLogin sets the "last_login" field if the given value is not nil.
+func (uc *UserCreate) SetNillableLastLogin(t *time.Time) *UserCreate {
+	if t != nil {
+		uc.SetLastLogin(*t)
+	}
+	return uc
+}
+
+// SetUpdatedAt sets the "updated_at" field.
+func (uc *UserCreate) SetUpdatedAt(t time.Time) *UserCreate {
+	uc.mutation.SetUpdatedAt(t)
+	return uc
+}
+
+// SetNillableUpdatedAt sets the "updated_at" field if the given value is not nil.
+func (uc *UserCreate) SetNillableUpdatedAt(t *time.Time) *UserCreate {
+	if t != nil {
+		uc.SetUpdatedAt(*t)
+	}
 	return uc
 }
 
@@ -56,6 +119,9 @@ func (uc *UserCreate) Mutation() *UserMutation {
 
 // Save creates the User in the database.
 func (uc *UserCreate) Save(ctx context.Context) (*User, error) {
+	if err := uc.defaults(); err != nil {
+		return nil, err
+	}
 	return withHooks(ctx, uc.sqlSave, uc.mutation, uc.hooks)
 }
 
@@ -81,8 +147,41 @@ func (uc *UserCreate) ExecX(ctx context.Context) {
 	}
 }
 
+// defaults sets the default values of the builder before save.
+func (uc *UserCreate) defaults() error {
+	if _, ok := uc.mutation.IsDeleted(); !ok {
+		v := user.DefaultIsDeleted
+		uc.mutation.SetIsDeleted(v)
+	}
+	if _, ok := uc.mutation.CreateAt(); !ok {
+		if user.DefaultCreateAt == nil {
+			return fmt.Errorf("ent: uninitialized user.DefaultCreateAt (forgotten import ent/runtime?)")
+		}
+		v := user.DefaultCreateAt()
+		uc.mutation.SetCreateAt(v)
+	}
+	if _, ok := uc.mutation.LastLogin(); !ok {
+		if user.DefaultLastLogin == nil {
+			return fmt.Errorf("ent: uninitialized user.DefaultLastLogin (forgotten import ent/runtime?)")
+		}
+		v := user.DefaultLastLogin()
+		uc.mutation.SetLastLogin(v)
+	}
+	if _, ok := uc.mutation.UpdatedAt(); !ok {
+		if user.DefaultUpdatedAt == nil {
+			return fmt.Errorf("ent: uninitialized user.DefaultUpdatedAt (forgotten import ent/runtime?)")
+		}
+		v := user.DefaultUpdatedAt()
+		uc.mutation.SetUpdatedAt(v)
+	}
+	return nil
+}
+
 // check runs all checks and user-defined validators on the builder.
 func (uc *UserCreate) check() error {
+	if _, ok := uc.mutation.IsDeleted(); !ok {
+		return &ValidationError{Name: "is_deleted", err: errors.New(`ent: missing required field "User.is_deleted"`)}
+	}
 	if _, ok := uc.mutation.Username(); !ok {
 		return &ValidationError{Name: "username", err: errors.New(`ent: missing required field "User.username"`)}
 	}
@@ -91,6 +190,18 @@ func (uc *UserCreate) check() error {
 	}
 	if _, ok := uc.mutation.Introduction(); !ok {
 		return &ValidationError{Name: "introduction", err: errors.New(`ent: missing required field "User.introduction"`)}
+	}
+	if _, ok := uc.mutation.Avatar(); !ok {
+		return &ValidationError{Name: "avatar", err: errors.New(`ent: missing required field "User.avatar"`)}
+	}
+	if _, ok := uc.mutation.CreateAt(); !ok {
+		return &ValidationError{Name: "create_at", err: errors.New(`ent: missing required field "User.create_at"`)}
+	}
+	if _, ok := uc.mutation.LastLogin(); !ok {
+		return &ValidationError{Name: "last_login", err: errors.New(`ent: missing required field "User.last_login"`)}
+	}
+	if _, ok := uc.mutation.UpdatedAt(); !ok {
+		return &ValidationError{Name: "updated_at", err: errors.New(`ent: missing required field "User.updated_at"`)}
 	}
 	if _, ok := uc.mutation.Password(); !ok {
 		return &ValidationError{Name: "password", err: errors.New(`ent: missing required field "User.password"`)}
@@ -137,6 +248,10 @@ func (uc *UserCreate) createSpec() (*User, *sqlgraph.CreateSpec) {
 		_node.ID = id
 		_spec.ID.Value = id
 	}
+	if value, ok := uc.mutation.IsDeleted(); ok {
+		_spec.SetField(user.FieldIsDeleted, field.TypeBool, value)
+		_node.IsDeleted = value
+	}
 	if value, ok := uc.mutation.Username(); ok {
 		_spec.SetField(user.FieldUsername, field.TypeString, value)
 		_node.Username = value
@@ -148,6 +263,22 @@ func (uc *UserCreate) createSpec() (*User, *sqlgraph.CreateSpec) {
 	if value, ok := uc.mutation.Introduction(); ok {
 		_spec.SetField(user.FieldIntroduction, field.TypeString, value)
 		_node.Introduction = value
+	}
+	if value, ok := uc.mutation.Avatar(); ok {
+		_spec.SetField(user.FieldAvatar, field.TypeString, value)
+		_node.Avatar = value
+	}
+	if value, ok := uc.mutation.CreateAt(); ok {
+		_spec.SetField(user.FieldCreateAt, field.TypeTime, value)
+		_node.CreateAt = value
+	}
+	if value, ok := uc.mutation.LastLogin(); ok {
+		_spec.SetField(user.FieldLastLogin, field.TypeTime, value)
+		_node.LastLogin = value
+	}
+	if value, ok := uc.mutation.UpdatedAt(); ok {
+		_spec.SetField(user.FieldUpdatedAt, field.TypeTime, value)
+		_node.UpdatedAt = value
 	}
 	if value, ok := uc.mutation.Password(); ok {
 		_spec.SetField(user.FieldPassword, field.TypeString, value)
@@ -174,6 +305,7 @@ func (ucb *UserCreateBulk) Save(ctx context.Context) ([]*User, error) {
 	for i := range ucb.builders {
 		func(i int, root context.Context) {
 			builder := ucb.builders[i]
+			builder.defaults()
 			var mut Mutator = MutateFunc(func(ctx context.Context, m Mutation) (Value, error) {
 				mutation, ok := m.(*UserMutation)
 				if !ok {

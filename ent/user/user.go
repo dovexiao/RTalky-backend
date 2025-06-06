@@ -3,6 +3,8 @@
 package user
 
 import (
+	"time"
+
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
 )
@@ -12,12 +14,22 @@ const (
 	Label = "user"
 	// FieldID holds the string denoting the id field in the database.
 	FieldID = "id"
+	// FieldIsDeleted holds the string denoting the is_deleted field in the database.
+	FieldIsDeleted = "is_deleted"
 	// FieldUsername holds the string denoting the username field in the database.
 	FieldUsername = "username"
 	// FieldNickname holds the string denoting the nickname field in the database.
 	FieldNickname = "nickname"
 	// FieldIntroduction holds the string denoting the introduction field in the database.
 	FieldIntroduction = "introduction"
+	// FieldAvatar holds the string denoting the avatar field in the database.
+	FieldAvatar = "avatar"
+	// FieldCreateAt holds the string denoting the create_at field in the database.
+	FieldCreateAt = "create_at"
+	// FieldLastLogin holds the string denoting the last_login field in the database.
+	FieldLastLogin = "last_login"
+	// FieldUpdatedAt holds the string denoting the updated_at field in the database.
+	FieldUpdatedAt = "updated_at"
 	// FieldPassword holds the string denoting the password field in the database.
 	FieldPassword = "password"
 	// Table holds the table name of the user in the database.
@@ -27,9 +39,14 @@ const (
 // Columns holds all SQL columns for user fields.
 var Columns = []string{
 	FieldID,
+	FieldIsDeleted,
 	FieldUsername,
 	FieldNickname,
 	FieldIntroduction,
+	FieldAvatar,
+	FieldCreateAt,
+	FieldLastLogin,
+	FieldUpdatedAt,
 	FieldPassword,
 }
 
@@ -50,6 +67,16 @@ func ValidColumn(column string) bool {
 //	import _ "RTalky/ent/runtime"
 var (
 	Hooks [1]ent.Hook
+	// DefaultIsDeleted holds the default value on creation for the "is_deleted" field.
+	DefaultIsDeleted bool
+	// DefaultCreateAt holds the default value on creation for the "create_at" field.
+	DefaultCreateAt func() time.Time
+	// DefaultLastLogin holds the default value on creation for the "last_login" field.
+	DefaultLastLogin func() time.Time
+	// DefaultUpdatedAt holds the default value on creation for the "updated_at" field.
+	DefaultUpdatedAt func() time.Time
+	// UpdateDefaultUpdatedAt holds the default value on update for the "updated_at" field.
+	UpdateDefaultUpdatedAt func() time.Time
 	// PasswordValidator is a validator for the "password" field. It is called by the builders before save.
 	PasswordValidator func(string) error
 	// IDValidator is a validator for the "id" field. It is called by the builders before save.
@@ -62,6 +89,11 @@ type OrderOption func(*sql.Selector)
 // ByID orders the results by the id field.
 func ByID(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldID, opts...).ToFunc()
+}
+
+// ByIsDeleted orders the results by the is_deleted field.
+func ByIsDeleted(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldIsDeleted, opts...).ToFunc()
 }
 
 // ByUsername orders the results by the username field.
@@ -77,6 +109,26 @@ func ByNickname(opts ...sql.OrderTermOption) OrderOption {
 // ByIntroduction orders the results by the introduction field.
 func ByIntroduction(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldIntroduction, opts...).ToFunc()
+}
+
+// ByAvatar orders the results by the avatar field.
+func ByAvatar(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldAvatar, opts...).ToFunc()
+}
+
+// ByCreateAt orders the results by the create_at field.
+func ByCreateAt(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldCreateAt, opts...).ToFunc()
+}
+
+// ByLastLogin orders the results by the last_login field.
+func ByLastLogin(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldLastLogin, opts...).ToFunc()
+}
+
+// ByUpdatedAt orders the results by the updated_at field.
+func ByUpdatedAt(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldUpdatedAt, opts...).ToFunc()
 }
 
 // ByPassword orders the results by the password field.

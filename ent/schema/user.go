@@ -5,6 +5,7 @@ import (
 	"RTalky/utils"
 	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/net/context"
+	"time"
 
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/entsql"
@@ -28,8 +29,14 @@ func (User) Fields() []ent.Field {
 				Incremental: utils.Ptr(true),
 			}),
 
+		// 是否已经被软删除
+		field.Bool("is_deleted").
+			Default(false),
+
 		// 用户名
 		field.String("username").
+			Optional().
+			Nillable().
 			Unique(),
 
 		// 昵称
@@ -38,9 +45,26 @@ func (User) Fields() []ent.Field {
 		// 简介
 		field.String("introduction"),
 
+		// 头像
+		field.String("avatar"),
+
+		// 创建于
+		field.Time("create_at").
+			Default(time.Now),
+
+		// 上次登陆
+		field.Time("last_login").
+			Default(time.Now),
+
+		// 上次修改
+		field.Time("updated_at").
+			Default(time.Now).
+			UpdateDefault(time.Now),
+
 		// 密码
 		field.String("password").
-			NotEmpty().
+			Optional().
+			Nillable().
 			Sensitive(),
 	}
 }

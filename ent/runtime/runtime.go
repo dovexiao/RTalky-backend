@@ -5,6 +5,7 @@ package runtime
 import (
 	"RTalky/ent/schema"
 	"RTalky/ent/user"
+	"time"
 )
 
 // The init function reads all schema descriptors with runtime code
@@ -15,8 +16,26 @@ func init() {
 	user.Hooks[0] = userHooks[0]
 	userFields := schema.User{}.Fields()
 	_ = userFields
+	// userDescIsDeleted is the schema descriptor for is_deleted field.
+	userDescIsDeleted := userFields[1].Descriptor()
+	// user.DefaultIsDeleted holds the default value on creation for the is_deleted field.
+	user.DefaultIsDeleted = userDescIsDeleted.Default.(bool)
+	// userDescCreateAt is the schema descriptor for create_at field.
+	userDescCreateAt := userFields[6].Descriptor()
+	// user.DefaultCreateAt holds the default value on creation for the create_at field.
+	user.DefaultCreateAt = userDescCreateAt.Default.(func() time.Time)
+	// userDescLastLogin is the schema descriptor for last_login field.
+	userDescLastLogin := userFields[7].Descriptor()
+	// user.DefaultLastLogin holds the default value on creation for the last_login field.
+	user.DefaultLastLogin = userDescLastLogin.Default.(func() time.Time)
+	// userDescUpdatedAt is the schema descriptor for updated_at field.
+	userDescUpdatedAt := userFields[8].Descriptor()
+	// user.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	user.DefaultUpdatedAt = userDescUpdatedAt.Default.(func() time.Time)
+	// user.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	user.UpdateDefaultUpdatedAt = userDescUpdatedAt.UpdateDefault.(func() time.Time)
 	// userDescPassword is the schema descriptor for password field.
-	userDescPassword := userFields[4].Descriptor()
+	userDescPassword := userFields[9].Descriptor()
 	// user.PasswordValidator is a validator for the "password" field. It is called by the builders before save.
 	user.PasswordValidator = userDescPassword.Validators[0].(func(string) error)
 	// userDescID is the schema descriptor for id field.

@@ -8,6 +8,18 @@ import (
 	"fmt"
 )
 
+// The OauthFunc type is an adapter to allow the use of ordinary
+// function as Oauth mutator.
+type OauthFunc func(context.Context, *ent.OauthMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f OauthFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.OauthMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.OauthMutation", m)
+}
+
 // The UserFunc type is an adapter to allow the use of ordinary
 // function as User mutator.
 type UserFunc func(context.Context, *ent.UserMutation) (ent.Value, error)

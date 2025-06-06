@@ -1,10 +1,10 @@
 package main
 
 import (
-	"context"
+	"RTalky/database"
+	"RTalky/services"
 	"os"
 
-	"RTalky/ent"
 	_ "RTalky/ent/runtime"
 	"RTalky/logger"
 	"RTalky/routes"
@@ -28,21 +28,12 @@ func init() {
 func main() {
 	dbURL := os.Getenv("DB_URL")
 	dbDriver := os.Getenv("DB_DRIVER")
+	bindAddress := os.Getenv("BIND_ADDRESS")
 
-	client, err := ent.Open(dbDriver, dbURL)
+	// 启动数据库连接
+	client, err := database.GetDataBaseClient(dbDriver, dbURL)
 	if err != nil {
-		logrus.Fatal("连接数据库失败: ", err.Error())
-	}
-	defer client.Close()
-
-	// Run the auto migration tool.
-	ctx := context.Background()
-	if err := client.Schema.Create(ctx); err != nil {
-		logrus.Fatal("连接数据库失败")
-	}
-	_, err = client.User.Create().SetUsername("test@test.com").SetPassword("test123").SetNickname("test").SetIntroduction("test").Save(ctx)
-	if err != nil {
-		logrus.Fatalf("%v", err)
+		logrus.Fatal("Fail to get database client: ", err.Error())
 		return
 	}
 
@@ -50,7 +41,7 @@ func main() {
 	e := echo.New()
 
 	routes.Register(e)
-	bindAddress := os.Getenv("BIND_ADDRESS")
-	e.Logger.Fatal(e.Start(bindAddress))
+	services.Register(client)
 
+	e.Logger.Fatal(e.Start(bindAddress))
 }

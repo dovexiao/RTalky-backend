@@ -104,7 +104,7 @@ func Login(c echo.Context) error {
 		})
 		return nil
 	case ent.IsNotFound(err):
-		responses.SetReturnValue(c, http.StatusUnauthorized, responses.UnauthorizedResponse)
+		responses.SetReturnValue(c, http.StatusOK, responses.AccountOrPasswordErrorResponse)
 		return nil
 	default:
 		logrus.Errorln("Fail to query user: ", err)
@@ -123,6 +123,6 @@ func Login(c echo.Context) error {
 // @Success      200  {object}  tools.Response
 // @Router       /auth/logout [POST]
 func Logout(c echo.Context) error {
-	responses.SetReturnValue(c, http.StatusOK, nil)
+	responses.SetReturnValue(c, http.StatusOK, "Logout successfully")
 	return nil
 }

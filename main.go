@@ -1,14 +1,13 @@
 package main
 
 import (
+	"RTalky/core/logger"
 	"RTalky/database"
+	"RTalky/routes"
 	"RTalky/services"
 	"os"
 
-	_ "RTalky/ent/runtime"
-	"RTalky/logger"
-	"RTalky/routes"
-
+	_ "RTalky/database/ent/runtime"
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/joho/godotenv"
 	"github.com/labstack/echo/v4"

@@ -1,15 +1,14 @@
 package handlers
 
 import (
-	"net/http"
-
-	"RTalky/dto"
-	"RTalky/ent"
-	"RTalky/ent/user"
 	"RTalky/handlers/responses"
 	"RTalky/services"
-	"RTalky/utils"
+	"net/http"
 
+	"RTalky/core/tools"
+	"RTalky/database/dto"
+	"RTalky/database/ent"
+	"RTalky/database/ent/user"
 	"github.com/labstack/echo/v4"
 	"github.com/sirupsen/logrus"
 )
@@ -60,7 +59,7 @@ func Login(c echo.Context) error {
 
 	switch {
 	case err == nil:
-		correct := utils.VerifyPassword(userToFind, loginDTO.Password)
+		correct := tools.VerifyPassword(userToFind, loginDTO.Password)
 		if !correct {
 			responses.SetReturnValue(c, http.StatusOK, responses.AccountOrPasswordErrorResponse)
 			return nil

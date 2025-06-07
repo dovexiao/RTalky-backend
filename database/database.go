@@ -1,8 +1,10 @@
 package database
 
 import (
-	"RTalky/ent"
 	"context"
+
+	"RTalky/database/ent"
+
 	"github.com/sirupsen/logrus"
 )
 

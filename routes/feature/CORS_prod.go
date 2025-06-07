@@ -6,5 +6,5 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
-func SetupCORS(e *echo.Echo) {
+func SetupCORS(_ *echo.Echo) {
 }

@@ -1,31 +1,31 @@
 package responses
 
 import (
-	"RTalky/utils"
+	"RTalky/core/tools"
 	"github.com/labstack/echo/v4"
 	"github.com/sirupsen/logrus"
 	"net/http"
 )
 
-var InternalErrorResponse = utils.Response{
+var InternalErrorResponse = tools.Response{
 	Code:    -1,
 	Message: "Server error occurred. Please try again later.",
 	Data:    nil,
 }
 
-var UnauthorizedResponse = utils.Response{
+var UnauthorizedResponse = tools.Response{
 	Code:    -2,
 	Message: "Authentication required. Please log in.",
 	Data:    nil,
 }
 
-var ParametersErrorResponse = utils.Response{
+var ParametersErrorResponse = tools.Response{
 	Code:    -3,
 	Message: "Invalid request parameters.",
 	Data:    nil,
 }
 
-var AccountOrPasswordErrorResponse = utils.Response{
+var AccountOrPasswordErrorResponse = tools.Response{
 	Code:    -4,
 	Message: "Invalid account or password.",
 	Data:    nil,

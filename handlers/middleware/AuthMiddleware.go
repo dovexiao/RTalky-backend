@@ -1,14 +1,13 @@
 package middleware
 
 import (
-	"github.com/sirupsen/logrus"
+	"RTalky/handlers/responses"
+	"RTalky/services"
 	"net/http"
 	"strings"
 
-	"RTalky/handlers/responses"
-	"RTalky/services"
-
 	"github.com/labstack/echo/v4"
+	"github.com/sirupsen/logrus"
 )
 
 func AuthMiddleware(next echo.HandlerFunc) echo.HandlerFunc {

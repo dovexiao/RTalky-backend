@@ -1,14 +1,15 @@
 package handlers
 
 import (
-	"RTalky/handlers/responses"
-	"RTalky/services"
 	"net/http"
 
 	"RTalky/core/tools"
 	"RTalky/database/dto"
 	"RTalky/database/ent"
 	"RTalky/database/ent/user"
+	"RTalky/handlers/responses"
+	"RTalky/services"
+
 	"github.com/labstack/echo/v4"
 	"github.com/sirupsen/logrus"
 )

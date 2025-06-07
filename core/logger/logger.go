@@ -3,7 +3,6 @@ package logger
 import (
 	"io"
 	"os"
-
 	"path/filepath"
 
 	"github.com/sirupsen/logrus"

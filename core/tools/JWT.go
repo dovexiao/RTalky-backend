@@ -3,11 +3,11 @@ package tools
 import (
 	"encoding/base64"
 	"errors"
-	"github.com/sirupsen/logrus"
 	"strconv"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/sirupsen/logrus"
 )
 
 type CustomClaims struct {

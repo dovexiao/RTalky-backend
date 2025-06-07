@@ -126,3 +126,15 @@ func Logout(c echo.Context) error {
 	responses.SetReturnValue(c, http.StatusOK, "Logout successfully")
 	return nil
 }
+
+func GenerateCaptcha(c echo.Context) error {
+	captcha, err := services.MakeCaptcha()
+
+	if err != nil {
+		responses.SetReturnValue(c, http.StatusInternalServerError, responses.InternalErrorResponse)
+		return nil
+	}
+
+	responses.SetReturnValue(c, http.StatusOK, captcha)
+	return nil
+}

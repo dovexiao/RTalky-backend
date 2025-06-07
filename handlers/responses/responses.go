@@ -35,9 +35,11 @@ var AccountOrPasswordErrorResponse = tools.Response{
 
 func SetReturnValue(c echo.Context, returnStatus int, returnValue interface{}) {
 	err := c.JSON(returnStatus, returnValue)
-	if err != nil {
-		logrus.Errorf("Fail to set return value: \n%v\n%v\n", returnValue, err)
+	if err == nil {
+		return
 	}
+
+	logrus.Errorf("Fail to set return value: \n%v\n%v\n", returnValue, err)
 	err = c.JSON(http.StatusInternalServerError, InternalErrorResponse)
 	if err != nil {
 		logrus.Fatalf("Fail to set return value with default error response: %v\n", err)

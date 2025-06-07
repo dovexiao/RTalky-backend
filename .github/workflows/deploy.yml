@@ -1,0 +1,76 @@
+# deploy.yml
+name: deploy RTalky backend to server
+on:
+  push:
+    branches:
+      - master
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      SERVICE_NAME: ${{ secrets.DEPLOY_NAME }}
+
+      GOOS: ${{ secrets.OS }}
+      GOARCH: ${{ secrets.ARCH }}
+
+      SSH_HOST: ${{ secrets.SSH_HOST }}
+      SSH_USER: ${{ secrets.SSH_USER }}
+      SSH_PORT: ${{ secrets.SSH_PORT }}
+      SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+
+      BUILD_OUTPUT_DIR: dist/${GOARCH}
+
+      BUILD_OUTPUT_PATH: ${BUILD_OUTPUT_DIR}/app
+      SCP_DEST_OUTPUT_PATH: ${{ secrets.SSH_DEST_PATH }}/${SERVICE_NAME}
+
+    steps:
+      # 打印所有环境变量
+      - name: Print all env
+        run: |
+          env
+
+      # 切换分支并补全子模块
+      - name: Checkout code (with submodules)
+        uses: actions/checkout@v3
+        with:
+          submodules: recursive
+
+      # 使用 go:1.23.0
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23.0'
+
+      # 编译
+      - name: go build
+        run: |
+          mkdir -p ${BUILD_OUTPUT_DIR}
+          GOOS=${GOOS} GOARCH=${GOARCH} go build -o ${BUILD_OUTPUT_PATH} RTalky
+        env:
+          CI: true
+
+      # 部署
+      - name: Deploy to Server
+        uses: appleboy/scp-action@v1
+        with:
+          host: ${SSH_HOST}
+          username: ${SSH_USER}
+          key: ${SSH_PRIVATE_KEY}
+          port: ${SSH_PORT}
+          source: ${BUILD_OUTPUT_PATH}
+          target: ${SCP_DEST_OUTPUT_PATH}
+
+      # 重启服务
+      - name: Restart service
+        uses: appleboy/ssh-action@v1.2.2
+        with:
+          host: ${SSH_HOST}
+          username: ${SSH_USER}
+          key: ${SSH_PRIVATE_KEY}
+          port: ${SSH_PORT}
+          script: |
+            cd ~/service/rtalky
+            ./rtalky_ctl.sh restart
+            ./rtalky_ctl.sh status
+#            supervisorctl restart ${SERVICE_NAME}
+#            supervisorctl status ${SERVICE_NAME}

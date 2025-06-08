@@ -54,7 +54,7 @@ func (h *expireHeap[K, V]) Pop() any {
 
 // ExpiringMap 是支持过期时间的键值对容器
 type ExpiringMap[K constraints.Ordered, V any] struct {
-	mu   sync.RWMutex
+	mu   sync.Mutex // TODO(dev) 将锁拆分为R和W两个
 	tree *rbtree.TreeThreadSafe[K, *entry[K, V]]
 	heap expireHeap[K, V]
 }
@@ -94,8 +94,8 @@ func (m *ExpiringMap[K, V]) Set(key K, value V, ttl time.Duration) {
 
 // Get 根据键获取值，如果键存在且未过期，返回值和 true；否则返回零值和 false
 func (m *ExpiringMap[K, V]) Get(key K) (V, bool) {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
+	m.mu.Lock()
+	defer m.mu.Unlock()
 
 	m.removeExpired()
 
@@ -136,8 +136,8 @@ func (m *ExpiringMap[K, V]) removeExpired() {
 
 // Len 返回当前未过期的键值对数量
 func (m *ExpiringMap[K, V]) Len() int {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
+	m.mu.Lock()
+	defer m.mu.Unlock()
 
 	m.removeExpired()
 	return m.tree.Len()

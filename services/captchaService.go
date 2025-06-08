@@ -65,5 +65,7 @@ func VerifyCaptcha(id, input string) (bool, string) {
 		return false, "Captcha verification failed"
 	}
 
+	CaptchaExpiringMap.Delete(id)
+
 	return true, "success"
 }

@@ -9,25 +9,25 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-var InternalErrorResponse = tools.Response{
+var InternalErrorResponse = tools.ResponseI[any]{
 	Code:    -1,
 	Message: "Server error occurred. Please try again later.",
 	Data:    nil,
 }
 
-var UnauthorizedResponse = tools.Response{
+var UnauthorizedResponse = tools.ResponseI[any]{
 	Code:    -2,
 	Message: "Authentication required. Please log in.",
 	Data:    nil,
 }
 
-var ParametersErrorResponse = tools.Response{
+var ParametersErrorResponse = tools.ResponseI[any]{
 	Code:    -3,
 	Message: "Invalid request parameters.",
 	Data:    nil,
 }
 
-var AccountOrPasswordErrorResponse = tools.Response{
+var AccountOrPasswordErrorResponse = tools.ResponseI[any]{
 	Code:    -4,
 	Message: "Invalid account or password.",
 	Data:    nil,

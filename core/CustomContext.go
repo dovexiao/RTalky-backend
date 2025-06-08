@@ -16,11 +16,11 @@ type CustomContext struct {
 
 func (c *CustomContext) JSON(code int, i interface{}) error {
 	var ok bool
-	var resp tools.Response
+	var resp tools.ResponseI[any]
 
 	// 如果已经是 Response 类型，直接返回，否则包装
-	if resp, ok = i.(tools.Response); !ok {
-		resp = tools.Response{
+	if resp, ok = i.(tools.ResponseI[any]); !ok {
+		resp = tools.ResponseI[any]{
 			Code:    0,
 			Message: "success",
 			Data:    i,

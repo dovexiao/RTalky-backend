@@ -21,9 +21,9 @@ import (
 // @Accept       json
 // @Produce      json
 // @Param        Authorization header string false "Authorization header"
-// @Success      200  {object}  tools.Response
-// @Failure      401  {object}  tools.Response
-// @Failure      500  {object}  tools.Response
+// @Success      200  {object}  tools.ResponseI[dto.User]
+// @Failure      401  {object}  tools.ResponseI[any]
+// @Failure      500  {object}  tools.ResponseI[any]
 // @Router       /auth/me [GET]
 func Me(c echo.Context) error {
 	username, ok := c.Get("username").(string)
@@ -62,9 +62,9 @@ func Me(c echo.Context) error {
 // @Produce      json
 // @Param        username body string true "username"
 // @Param        password body string true "password"
-// @Success      200  {object}  tools.Response
-// @Failure      400  {object}  tools.Response
-// @Failure      500  {object}  tools.Response
+// @Success      200  {object}  tools.ResponseI[dto.LoginResponse]
+// @Failure      400  {object}  tools.ResponseI[any]
+// @Failure      500  {object}  tools.ResponseI[any]
 // @Router       /auth/login [POST]
 func Login(c echo.Context) error {
 	var loginDTO dto.LoginArg
@@ -120,7 +120,7 @@ func Login(c echo.Context) error {
 // @Accept       json
 // @Produce      json
 // @Param        Authorization header string false "Authorization header"
-// @Success      200  {object}  tools.Response
+// @Success      200  {object}  tools.ResponseI[any]
 // @Router       /auth/logout [POST]
 func Logout(c echo.Context) error {
 	responses.SetReturnValue(c, http.StatusOK, "Logout successfully")
@@ -133,8 +133,8 @@ func Logout(c echo.Context) error {
 // @Tags         auth
 // @Accept       json
 // @Produce      json
-// @Success      200  {object}  tools.Response
-// @Failure      500  {object}  tools.Response
+// @Success      200  {object}  tools.ResponseI[dto.Captcha]
+// @Failure      500  {object}  tools.ResponseI[any]
 // @Router       /auth/captcha [GET]
 func GenerateCaptcha(c echo.Context) error {
 	captcha, err := services.MakeCaptcha()

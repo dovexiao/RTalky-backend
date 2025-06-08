@@ -37,11 +37,12 @@ func Register(e *echo.Echo) {
 	// auth 模块
 	authGroup := api.Group("/auth")
 	authGroup.GET("/me", handlers.Me)
+	authGroup.GET("/captcha", handlers.GenerateCaptcha)
 	authGroup.POST("/login", handlers.Login)
 	authGroup.POST("/logout", handlers.Logout)
+	authGroup.POST("/signup", handlers.EmptyHandler)
 
-	// user 模块
-	userGroup := api.Group("/user", mymiddleware.AuthMiddleware)
-	userGroup.POST("/signup", handlers.EmptyHandler)
-	userGroup.POST("/update/:uid", handlers.EmptyHandler)
+	// profile模块
+	profileGroup := api.Group("/profile", mymiddleware.AuthMiddleware)
+	profileGroup.POST("/update", handlers.EmptyHandler)
 }

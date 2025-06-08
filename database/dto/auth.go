@@ -32,3 +32,8 @@ func NewUser(user *ent.User) (u User) {
 	u.CreateAt = user.CreateAt
 	return
 }
+
+type Captcha struct {
+	Id      string `json:"id"`
+	Captcha string `json:"captcha"`
+}

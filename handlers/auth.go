@@ -127,6 +127,15 @@ func Logout(c echo.Context) error {
 	return nil
 }
 
+// GenerateCaptcha godoc
+// @Summary      Generate a captcha
+// @Description  Generate a captcha image
+// @Tags         auth
+// @Accept       json
+// @Produce      json
+// @Success      200  {object}  tools.Response
+// @Failure      500  {object}  tools.Response
+// @Router       /auth/captcha [GET]
 func GenerateCaptcha(c echo.Context) error {
 	captcha, err := services.MakeCaptcha()
 

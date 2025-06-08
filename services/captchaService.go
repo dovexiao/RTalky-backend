@@ -4,17 +4,18 @@ import (
 	"bytes"
 	"encoding/base64"
 	"fmt"
-	"github.com/dchest/captcha"
-	"github.com/google/uuid"
 	"image/png"
 	"strings"
 	"time"
+
+	"RTalky/core"
+	"RTalky/database/dto"
+
+	"github.com/dchest/captcha"
+	"github.com/google/uuid"
 )
 
-type Captcha struct {
-	Id      string `json:"id"`
-	Captcha string `json:"captcha"`
-}
+var CaptchaExpiringMap *core.ExpiringMap[string, string]
 
 func generateCaptcha() (string, string, error) {
 	digits := captcha.RandomDigits(6)
@@ -38,7 +39,7 @@ func generateCaptcha() (string, string, error) {
 	return answer, dataURI, nil
 }
 
-func MakeCaptcha() (*Captcha, error) {
+func MakeCaptcha() (*dto.Captcha, error) {
 	answer, captchaURI, err := generateCaptcha()
 	if err != nil {
 		return nil, err
@@ -48,7 +49,7 @@ func MakeCaptcha() (*Captcha, error) {
 
 	CaptchaExpiringMap.Set(id, answer, 5*time.Minute)
 
-	return &Captcha{
+	return &dto.Captcha{
 		Id:      id,
 		Captcha: captchaURI,
 	}, nil

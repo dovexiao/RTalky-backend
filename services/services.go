@@ -10,7 +10,6 @@ import (
 
 var JwtUtils *tools.JWTUtils
 var DatabaseClient *ent.Client
-var CaptchaExpiringMap *core.ExpiringMap[string, string]
 
 func Register(client *ent.Client) {
 	DatabaseClient = client

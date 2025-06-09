@@ -14,9 +14,15 @@ type User struct {
 	CreateAt     time.Time `json:"create_at"`
 }
 
+type Captcha struct {
+	Id      string `json:"id"`
+	Captcha string `json:"captcha"`
+}
+
 type LoginArg struct {
-	Username string `json:"username"`
-	Password string `json:"password"`
+	Username string  `json:"username"`
+	Password string  `json:"password"`
+	Captcha  Captcha `json:"captcha"`
 }
 
 type LoginResponse struct {
@@ -31,9 +37,4 @@ func NewUser(user *ent.User) (u User) {
 	u.Introduction = user.Introduction
 	u.CreateAt = user.CreateAt
 	return
-}
-
-type Captcha struct {
-	Id      string `json:"id"`
-	Captcha string `json:"captcha"`
 }

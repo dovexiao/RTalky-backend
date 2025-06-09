@@ -3,7 +3,7 @@ package handlers
 import (
 	"RTalky/http/dto"
 	"RTalky/http/handlers/responses"
-	services2 "RTalky/http/services"
+	myservices "RTalky/http/services"
 	"net/http"
 
 	"RTalky/core/tools"
@@ -34,7 +34,7 @@ func Me(c echo.Context) error {
 
 	ctx := c.Request().Context()
 
-	userToFind, err := services2.DatabaseClient.User.
+	userToFind, err := myservices.DatabaseClient.User.
 		Query().
 		Where(user.UsernameEQ(username)).
 		Only(ctx)
@@ -75,7 +75,16 @@ func Login(c echo.Context) error {
 		return nil
 	}
 
-	userToFind, err := services2.DatabaseClient.User.
+	if correct, reason := myservices.VerifyCaptcha(loginDTO.Captcha.Id, loginDTO.Captcha.Captcha); !correct {
+		logrus.Debug("Fail to verify captcha, reason: ", reason)
+		responses.SetReturnValue(c, http.StatusOK, tools.ResponseI[string]{
+			Code:    1001,
+			Message: "Incorrect captcha code",
+		})
+		return nil
+	}
+
+	userToFind, err := myservices.DatabaseClient.User.
 		Query().
 		Where(user.UsernameEQ(loginDTO.Password)).
 		Only(ctx)
@@ -89,7 +98,7 @@ func Login(c echo.Context) error {
 		}
 
 		var token string
-		token, err = services2.JwtUtils.GenerateToken(userToFind.Username)
+		token, err = myservices.JwtUtils.GenerateToken(userToFind.Username)
 
 		if err != nil {
 			logrus.Errorln("Fail to generate token: ", err)
@@ -136,7 +145,7 @@ func Logout(c echo.Context) error {
 // @Failure      500  {object}  tools.ResponseI[any]
 // @Router       /auth/captcha [GET]
 func GenerateCaptcha(c echo.Context) error {
-	captcha, err := services2.MakeCaptcha()
+	captcha, err := myservices.MakeCaptcha()
 
 	if err != nil {
 		responses.SetReturnValue(c, http.StatusInternalServerError, responses.InternalErrorResponse)

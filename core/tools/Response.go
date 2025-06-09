@@ -42,3 +42,12 @@ type ResponseI[T any] struct {
 	Message string `json:"message"`
 	Data    T      `json:"data,omitempty"`
 }
+
+// ErrorResponse represents a standard error response returned by the API.
+//
+// It is typically used to convey error information when an API request fails.
+// The client can inspect the `Code` and `Message` fields to understand the cause of the error.
+type ErrorResponse struct {
+	Code    int    `json:"code"`
+	Message string `json:"message"`
+}

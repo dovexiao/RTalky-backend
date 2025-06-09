@@ -1,6 +1,7 @@
 package services
 
 import (
+	"RTalky/http/dto"
 	"bytes"
 	"encoding/base64"
 	"fmt"
@@ -9,8 +10,6 @@ import (
 	"time"
 
 	"RTalky/core"
-	"RTalky/database/dto"
-
 	"github.com/dchest/captcha"
 	"github.com/google/uuid"
 )

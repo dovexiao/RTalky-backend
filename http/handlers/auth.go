@@ -1,12 +1,12 @@
 package handlers
 
 import (
+	"RTalky/http/dto"
 	"RTalky/http/handlers/responses"
 	services2 "RTalky/http/services"
 	"net/http"
 
 	"RTalky/core/tools"
-	"RTalky/database/dto"
 	"RTalky/database/ent"
 	"RTalky/database/ent/user"
 	"github.com/labstack/echo/v4"

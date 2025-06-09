@@ -17,12 +17,23 @@ func (c *CustomContext) JSON(code int, i interface{}) error {
 	var ok bool
 	var resp tools.ResponseI[any]
 
-	// 如果已经是 Response 类型，直接返回，否则包装
+	// 如果已经是 ResponseI 类型，直接返回
 	if resp, ok = i.(tools.ResponseI[any]); !ok {
-		resp = tools.ResponseI[any]{
-			Code:    0,
-			Message: "success",
-			Data:    i,
+		// 如果是 ErrorResponse 类型，则将其赋值为ResponseI类型
+		if errResp, ok := i.(tools.ErrorResponse); ok {
+			resp = tools.ResponseI[any]{
+				Code:    errResp.Code,
+				Message: errResp.Message,
+				Data:    nil,
+			}
+		} else
+		// 否则包装
+		{
+			resp = tools.ResponseI[any]{
+				Code:    0,
+				Message: "success",
+				Data:    i,
+			}
 		}
 	}
 

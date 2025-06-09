@@ -13,6 +13,13 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+const (
+	StatusOK           int = 0
+	StatusCaptchaError int = iota + 1000
+	StatusLoginError
+	StatusSignupError
+)
+
 // Me godoc
 // @Summary      Get current login account info
 // @Description  get info by HTTP Authorization header
@@ -59,8 +66,7 @@ func Me(c echo.Context) error {
 // @Tags         auth
 // @Accept       json
 // @Produce      json
-// @Param        username body string true "username"
-// @Param        password body string true "password"
+// @Param        arg body dto.LoginArg true "request arg"
 // @Success      200  {object}  tools.ResponseI[dto.LoginResponse]
 // @Success      200  {object}  tools.ErrorResponse
 // @Failure      400  {object}  tools.ErrorResponse
@@ -79,7 +85,7 @@ func Login(c echo.Context) error {
 	if correct, reason := myservices.VerifyCaptcha(loginDTO.Captcha.Id, loginDTO.Captcha.Captcha); !correct {
 		logrus.Debug("Fail to verify captcha, reason: ", reason)
 		responses.SetReturnValue(c, http.StatusOK, tools.ResponseI[string]{
-			Code:    1001,
+			Code:    StatusCaptchaError,
 			Message: "Incorrect captcha code",
 		})
 		return nil
@@ -94,7 +100,10 @@ func Login(c echo.Context) error {
 	case err == nil:
 		correct := tools.VerifyPassword(userToFind, loginDTO.Password)
 		if !correct {
-			responses.SetReturnValue(c, http.StatusOK, responses.AccountOrPasswordErrorResponse)
+			responses.SetReturnValue(c, http.StatusOK, tools.ErrorResponse{
+				Code:    StatusLoginError,
+				Message: "Invalid account or password.",
+			})
 			return nil
 		}
 
@@ -113,7 +122,10 @@ func Login(c echo.Context) error {
 		})
 		return nil
 	case ent.IsNotFound(err):
-		responses.SetReturnValue(c, http.StatusOK, responses.AccountOrPasswordErrorResponse)
+		responses.SetReturnValue(c, http.StatusOK, tools.ErrorResponse{
+			Code:    StatusLoginError,
+			Message: "Invalid account or password.",
+		})
 		return nil
 	default:
 		logrus.Errorln("Fail to query user: ", err)
@@ -129,7 +141,7 @@ func Login(c echo.Context) error {
 // @Accept       json
 // @Produce      json
 // @Param        Authorization header string false "Authorization header"
-// @Success      200  {object}  tools.ErrorResponse
+// @Success      200  {object}  tools.ResponseI[string]
 // @Failure      500  {object}  tools.ErrorResponse
 // @Router       /auth/logout [POST]
 func Logout(c echo.Context) error {
@@ -155,5 +167,71 @@ func GenerateCaptcha(c echo.Context) error {
 	}
 
 	responses.SetReturnValue(c, http.StatusOK, captcha)
+	return nil
+}
+
+// SignUpHandler godoc
+// @Summary      handle signup response
+// @Description  Handle the signup response
+// @Tags         auth
+// @Accept       json
+// @Produce      json
+// @Param        arg body dto.SignUpArg true "request arg"
+// @Success      200  {object}  tools.ResponseI[string]
+// @Failure      200  {object}  tools.ErrorResponse
+// @Failure      500  {object}  tools.ErrorResponse
+// @Router       /auth/signup [POST]
+func SignUpHandler(c echo.Context) error {
+	var signupArg dto.SignUpArg
+
+	ctx := c.Request().Context()
+	if err := c.Bind(&signupArg); err != nil {
+		logrus.Errorln("Fail to bind value to dto type: ", err)
+		responses.SetReturnValue(c, http.StatusBadRequest, responses.ParametersErrorResponse)
+		return nil
+	}
+
+	if correct, reason := myservices.VerifyCaptcha(signupArg.Captcha.Id, signupArg.Captcha.Captcha); !correct {
+		logrus.Debug("Fail to verify captcha, reason: ", reason)
+		responses.SetReturnValue(c, http.StatusOK, tools.ResponseI[string]{
+			Code:    StatusCaptchaError,
+			Message: "Incorrect captcha code",
+		})
+		return nil
+	}
+
+	_, err := myservices.DatabaseClient.User.
+		Query().
+		Where(user.UsernameEQ(signupArg.Email)).
+		Only(ctx)
+
+	switch {
+	case err == nil:
+		responses.SetReturnValue(c, http.StatusOK, tools.ErrorResponse{
+			Code:    StatusSignupError,
+			Message: "Account already exists",
+		})
+		return nil
+	case ent.IsNotFound(err):
+		userToSave := myservices.DatabaseClient.User.Create().
+			SetUsername(signupArg.Email).
+			SetNickname(signupArg.Email).
+			SetPassword(signupArg.Password)
+
+		_, err := userToSave.Save(ctx)
+
+		if err != nil {
+			logrus.Warnf("Fail to save user: %v, reason: %v", userToSave, err)
+			responses.SetReturnValue(c, http.StatusInternalServerError, responses.InternalErrorResponse)
+			return nil
+		}
+
+		responses.SetReturnValue(c, http.StatusOK, "Sign up successfully")
+		return nil
+	default:
+		logrus.Errorln("Fail to query user: ", err)
+		responses.SetReturnValue(c, http.StatusInternalServerError, responses.InternalErrorResponse)
+	}
+
 	return nil
 }

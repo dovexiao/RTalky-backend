@@ -44,10 +44,13 @@ func (User) Fields() []ent.Field {
 		field.String("nickname"),
 
 		// 简介
-		field.String("introduction"),
+		field.String("introduction").
+			Default(""),
 
 		// 头像
-		field.String("avatar"),
+		field.String("avatar").
+			Optional().
+			Nillable(),
 
 		// 创建于
 		field.Time("create_at").

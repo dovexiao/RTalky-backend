@@ -69,6 +69,8 @@ var (
 	Hooks [1]ent.Hook
 	// DefaultIsDeleted holds the default value on creation for the "is_deleted" field.
 	DefaultIsDeleted bool
+	// DefaultIntroduction holds the default value on creation for the "introduction" field.
+	DefaultIntroduction string
 	// DefaultCreateAt holds the default value on creation for the "create_at" field.
 	DefaultCreateAt func() time.Time
 	// DefaultLastLogin holds the default value on creation for the "last_login" field.

@@ -20,6 +20,10 @@ func init() {
 	userDescIsDeleted := userFields[1].Descriptor()
 	// user.DefaultIsDeleted holds the default value on creation for the is_deleted field.
 	user.DefaultIsDeleted = userDescIsDeleted.Default.(bool)
+	// userDescIntroduction is the schema descriptor for introduction field.
+	userDescIntroduction := userFields[4].Descriptor()
+	// user.DefaultIntroduction holds the default value on creation for the introduction field.
+	user.DefaultIntroduction = userDescIntroduction.Default.(string)
 	// userDescCreateAt is the schema descriptor for create_at field.
 	userDescCreateAt := userFields[6].Descriptor()
 	// user.DefaultCreateAt holds the default value on creation for the create_at field.

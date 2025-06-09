@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"encoding/base64"
 	"fmt"
+	"github.com/sirupsen/logrus"
 	"image/png"
 	"strings"
 	"time"
@@ -45,8 +46,9 @@ func MakeCaptcha() (*dto.Captcha, error) {
 	}
 
 	id := uuid.New().String()
-
 	CaptchaExpiringMap.Set(id, answer, 5*time.Minute)
+
+	logrus.Debug("new captcha:", answer)
 
 	return &dto.Captcha{
 		Id:      id,
@@ -61,11 +63,12 @@ func VerifyCaptcha(id, input string) (bool, string) {
 		return false, "Captcha has expired"
 	}
 
-	if strings.EqualFold(answer, input) {
+	CaptchaExpiringMap.Delete(id)
+
+	if !strings.EqualFold(answer, input) {
+		logrus.Debugf("Verify captcha fail: answer=`%s` input=`%s`", answer, input)
 		return false, "Captcha verification failed"
 	}
-
-	CaptchaExpiringMap.Delete(id)
 
 	return true, "success"
 }

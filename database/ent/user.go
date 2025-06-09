@@ -26,7 +26,7 @@ type User struct {
 	// Introduction holds the value of the "introduction" field.
 	Introduction string `json:"introduction,omitempty"`
 	// Avatar holds the value of the "avatar" field.
-	Avatar string `json:"avatar,omitempty"`
+	Avatar *string `json:"avatar,omitempty"`
 	// CreateAt holds the value of the "create_at" field.
 	CreateAt time.Time `json:"create_at,omitempty"`
 	// LastLogin holds the value of the "last_login" field.
@@ -100,7 +100,8 @@ func (u *User) assignValues(columns []string, values []any) error {
 			if value, ok := values[i].(*sql.NullString); !ok {
 				return fmt.Errorf("unexpected type %T for field avatar", values[i])
 			} else if value.Valid {
-				u.Avatar = value.String
+				u.Avatar = new(string)
+				*u.Avatar = value.String
 			}
 		case user.FieldCreateAt:
 			if value, ok := values[i].(*sql.NullTime); !ok {
@@ -175,8 +176,10 @@ func (u *User) String() string {
 	builder.WriteString("introduction=")
 	builder.WriteString(u.Introduction)
 	builder.WriteString(", ")
-	builder.WriteString("avatar=")
-	builder.WriteString(u.Avatar)
+	if v := u.Avatar; v != nil {
+		builder.WriteString("avatar=")
+		builder.WriteString(*v)
+	}
 	builder.WriteString(", ")
 	builder.WriteString("create_at=")
 	builder.WriteString(u.CreateAt.Format(time.ANSIC))

@@ -19,6 +19,12 @@ type Captcha struct {
 	Captcha string `json:"captcha"`
 }
 
+type SignUpArg struct {
+	Email    string  `json:"email"`
+	Password string  `json:"password"`
+	Captcha  Captcha `json:"captcha"`
+}
+
 type LoginArg struct {
 	Username string  `json:"username"`
 	Password string  `json:"password"`
@@ -32,7 +38,7 @@ type LoginResponse struct {
 
 func NewUser(user *ent.User) (u User) {
 	u.Username = user.Username
-	u.Avatar = user.Avatar
+	u.Avatar = *user.Avatar
 	u.Nickname = user.Nickname
 	u.Introduction = user.Introduction
 	u.CreateAt = user.CreateAt

@@ -654,7 +654,7 @@ func (m *UserMutation) Avatar() (r string, exists bool) {
 // OldAvatar returns the old "avatar" field's value of the User entity.
 // If the User object wasn't provided to the builder, the object is fetched from the database.
 // An error is returned if the mutation operation is not UpdateOne, or the database query fails.
-func (m *UserMutation) OldAvatar(ctx context.Context) (v string, err error) {
+func (m *UserMutation) OldAvatar(ctx context.Context) (v *string, err error) {
 	if !m.op.Is(OpUpdateOne) {
 		return v, errors.New("OldAvatar is only allowed on UpdateOne operations")
 	}
@@ -668,9 +668,22 @@ func (m *UserMutation) OldAvatar(ctx context.Context) (v string, err error) {
 	return oldValue.Avatar, nil
 }
 
+// ClearAvatar clears the value of the "avatar" field.
+func (m *UserMutation) ClearAvatar() {
+	m.avatar = nil
+	m.clearedFields[user.FieldAvatar] = struct{}{}
+}
+
+// AvatarCleared returns if the "avatar" field was cleared in this mutation.
+func (m *UserMutation) AvatarCleared() bool {
+	_, ok := m.clearedFields[user.FieldAvatar]
+	return ok
+}
+
 // ResetAvatar resets all changes to the "avatar" field.
 func (m *UserMutation) ResetAvatar() {
 	m.avatar = nil
+	delete(m.clearedFields, user.FieldAvatar)
 }
 
 // SetCreateAt sets the "create_at" field.
@@ -1050,6 +1063,9 @@ func (m *UserMutation) ClearedFields() []string {
 	if m.FieldCleared(user.FieldUsername) {
 		fields = append(fields, user.FieldUsername)
 	}
+	if m.FieldCleared(user.FieldAvatar) {
+		fields = append(fields, user.FieldAvatar)
+	}
 	if m.FieldCleared(user.FieldPassword) {
 		fields = append(fields, user.FieldPassword)
 	}
@@ -1069,6 +1085,9 @@ func (m *UserMutation) ClearField(name string) error {
 	switch name {
 	case user.FieldUsername:
 		m.ClearUsername()
+		return nil
+	case user.FieldAvatar:
+		m.ClearAvatar()
 		return nil
 	case user.FieldPassword:
 		m.ClearPassword()

@@ -60,9 +60,25 @@ func (uc *UserCreate) SetIntroduction(s string) *UserCreate {
 	return uc
 }
 
+// SetNillableIntroduction sets the "introduction" field if the given value is not nil.
+func (uc *UserCreate) SetNillableIntroduction(s *string) *UserCreate {
+	if s != nil {
+		uc.SetIntroduction(*s)
+	}
+	return uc
+}
+
 // SetAvatar sets the "avatar" field.
 func (uc *UserCreate) SetAvatar(s string) *UserCreate {
 	uc.mutation.SetAvatar(s)
+	return uc
+}
+
+// SetNillableAvatar sets the "avatar" field if the given value is not nil.
+func (uc *UserCreate) SetNillableAvatar(s *string) *UserCreate {
+	if s != nil {
+		uc.SetAvatar(*s)
+	}
 	return uc
 }
 
@@ -169,6 +185,10 @@ func (uc *UserCreate) defaults() error {
 		v := user.DefaultIsDeleted
 		uc.mutation.SetIsDeleted(v)
 	}
+	if _, ok := uc.mutation.Introduction(); !ok {
+		v := user.DefaultIntroduction
+		uc.mutation.SetIntroduction(v)
+	}
 	if _, ok := uc.mutation.CreateAt(); !ok {
 		if user.DefaultCreateAt == nil {
 			return fmt.Errorf("ent: uninitialized user.DefaultCreateAt (forgotten import ent/runtime?)")
@@ -203,9 +223,6 @@ func (uc *UserCreate) check() error {
 	}
 	if _, ok := uc.mutation.Introduction(); !ok {
 		return &ValidationError{Name: "introduction", err: errors.New(`ent: missing required field "User.introduction"`)}
-	}
-	if _, ok := uc.mutation.Avatar(); !ok {
-		return &ValidationError{Name: "avatar", err: errors.New(`ent: missing required field "User.avatar"`)}
 	}
 	if _, ok := uc.mutation.CreateAt(); !ok {
 		return &ValidationError{Name: "create_at", err: errors.New(`ent: missing required field "User.create_at"`)}
@@ -271,7 +288,7 @@ func (uc *UserCreate) createSpec() (*User, *sqlgraph.CreateSpec) {
 	}
 	if value, ok := uc.mutation.Avatar(); ok {
 		_spec.SetField(user.FieldAvatar, field.TypeString, value)
-		_node.Avatar = value
+		_node.Avatar = &value
 	}
 	if value, ok := uc.mutation.CreateAt(); ok {
 		_spec.SetField(user.FieldCreateAt, field.TypeTime, value)

@@ -104,6 +104,12 @@ func (uu *UserUpdate) SetNillableAvatar(s *string) *UserUpdate {
 	return uu
 }
 
+// ClearAvatar clears the value of the "avatar" field.
+func (uu *UserUpdate) ClearAvatar() *UserUpdate {
+	uu.mutation.ClearAvatar()
+	return uu
+}
+
 // SetCreateAt sets the "create_at" field.
 func (uu *UserUpdate) SetCreateAt(t time.Time) *UserUpdate {
 	uu.mutation.SetCreateAt(t)
@@ -232,6 +238,9 @@ func (uu *UserUpdate) sqlSave(ctx context.Context) (n int, err error) {
 	if value, ok := uu.mutation.Avatar(); ok {
 		_spec.SetField(user.FieldAvatar, field.TypeString, value)
 	}
+	if uu.mutation.AvatarCleared() {
+		_spec.ClearField(user.FieldAvatar, field.TypeString)
+	}
 	if value, ok := uu.mutation.CreateAt(); ok {
 		_spec.SetField(user.FieldCreateAt, field.TypeTime, value)
 	}
@@ -340,6 +349,12 @@ func (uuo *UserUpdateOne) SetNillableAvatar(s *string) *UserUpdateOne {
 	if s != nil {
 		uuo.SetAvatar(*s)
 	}
+	return uuo
+}
+
+// ClearAvatar clears the value of the "avatar" field.
+func (uuo *UserUpdateOne) ClearAvatar() *UserUpdateOne {
+	uuo.mutation.ClearAvatar()
 	return uuo
 }
 
@@ -500,6 +515,9 @@ func (uuo *UserUpdateOne) sqlSave(ctx context.Context) (_node *User, err error) 
 	}
 	if value, ok := uuo.mutation.Avatar(); ok {
 		_spec.SetField(user.FieldAvatar, field.TypeString, value)
+	}
+	if uuo.mutation.AvatarCleared() {
+		_spec.ClearField(user.FieldAvatar, field.TypeString)
 	}
 	if value, ok := uuo.mutation.CreateAt(); ok {
 		_spec.SetField(user.FieldCreateAt, field.TypeTime, value)

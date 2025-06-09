@@ -24,11 +24,6 @@ var ParametersErrorResponse = tools.ErrorResponse{
 	Message: "Invalid request parameters.",
 }
 
-var AccountOrPasswordErrorResponse = tools.ErrorResponse{
-	Code:    -4,
-	Message: "Invalid account or password.",
-}
-
 func SetReturnValue(c echo.Context, returnStatus int, returnValue interface{}) {
 	err := c.JSON(returnStatus, returnValue)
 	if err == nil {

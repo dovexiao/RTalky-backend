@@ -1,10 +1,9 @@
 package routes
 
 import (
-	"RTalky/handlers"
-	mymiddleware "RTalky/handlers/middleware"
-	"RTalky/routes/feature"
-
+	handlers2 "RTalky/http/handlers"
+	middleware2 "RTalky/http/handlers/middleware"
+	"RTalky/http/routes/feature"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	"github.com/swaggo/echo-swagger"
@@ -32,17 +31,17 @@ func Register(e *echo.Echo) {
 
 	e.GET("/swagger/*", echoSwagger.WrapHandler)
 
-	api := e.Group("/api", mymiddleware.CustomContextMiddleware)
+	api := e.Group("/api", middleware2.CustomContextMiddleware)
 
 	// auth 模块
 	authGroup := api.Group("/auth")
-	authGroup.GET("/me", handlers.Me)
-	authGroup.GET("/captcha", handlers.GenerateCaptcha)
-	authGroup.POST("/login", handlers.Login)
-	authGroup.POST("/logout", handlers.Logout)
-	authGroup.POST("/signup", handlers.EmptyHandler)
+	authGroup.GET("/me", handlers2.Me)
+	authGroup.GET("/captcha", handlers2.GenerateCaptcha)
+	authGroup.POST("/login", handlers2.Login)
+	authGroup.POST("/logout", handlers2.Logout)
+	authGroup.POST("/signup", handlers2.EmptyHandler)
 
 	// profile模块
-	profileGroup := api.Group("/profile", mymiddleware.AuthMiddleware)
-	profileGroup.POST("/update", handlers.EmptyHandler)
+	profileGroup := api.Group("/profile", middleware2.AuthMiddleware)
+	profileGroup.POST("/update", handlers2.EmptyHandler)
 }

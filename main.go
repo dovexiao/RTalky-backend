@@ -3,8 +3,8 @@ package main
 import (
 	"RTalky/core/logger"
 	"RTalky/database"
-	"RTalky/routes"
-	"RTalky/services"
+	"RTalky/http/routes"
+	"RTalky/http/services"
 	"os"
 
 	_ "RTalky/database/ent/runtime"

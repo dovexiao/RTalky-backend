@@ -30,7 +30,7 @@ jobs:
       - name: go build
         run: |
           go install github.com/swaggo/swag/cmd/swag@latest
-          swag init -g routes/router.go
+          swag init -g http/routes/router.go
           mkdir -p dist/${{ secrets.ARCH }}
           GOOS=${{ secrets.OS }} GOARCH=${{ secrets.ARCH }} go build -o dist/${{ secrets.ARCH }}/${{ secrets.DEPLOY_NAME }}_dev .
           ls -la dist/${{ secrets.ARCH }}

@@ -1,11 +1,10 @@
 package core
 
 import (
+	"RTalky/http/handlers/responses"
 	"net/http"
 
 	"RTalky/core/tools"
-	"RTalky/handlers/responses"
-
 	"github.com/labstack/echo/v4"
 	"github.com/sirupsen/logrus"
 )

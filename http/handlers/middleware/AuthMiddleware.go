@@ -1,11 +1,10 @@
 package middleware
 
 import (
+	"RTalky/http/handlers/responses"
+	"RTalky/http/services"
 	"net/http"
 	"strings"
-
-	"RTalky/handlers/responses"
-	"RTalky/services"
 
 	"github.com/labstack/echo/v4"
 	"github.com/sirupsen/logrus"

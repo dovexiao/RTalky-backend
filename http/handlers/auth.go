@@ -87,7 +87,7 @@ func Login(c echo.Context) error {
 
 	userToFind, err := myservices.DatabaseClient.User.
 		Query().
-		Where(user.UsernameEQ(loginDTO.Password)).
+		Where(user.UsernameEQ(loginDTO.Username)).
 		Only(ctx)
 
 	switch {

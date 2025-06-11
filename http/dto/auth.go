@@ -44,3 +44,11 @@ func NewUser(user *ent.User) (u User) {
 	u.CreateAt = user.CreateAt
 	return
 }
+
+type EmailCaptchaArg struct {
+	Email string `query:"email"`
+}
+
+type EmailCaptchaResponse struct {
+	Id string `json:"id"`
+}

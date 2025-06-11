@@ -38,9 +38,14 @@ func Register(e *echo.Echo) {
 	authGroup := api.Group("/auth")
 	authGroup.GET("/me", httpHandlers.Me)
 	authGroup.GET("/captcha", httpHandlers.GenerateCaptcha)
+	authGroup.GET("/captcha/email", httpHandlers.EmailCaptchaHandler)
 	authGroup.POST("/login", httpHandlers.Login)
 	authGroup.POST("/logout", httpHandlers.Logout)
 	authGroup.POST("/signup", httpHandlers.SignUpHandler)
+
+	// chat 模块
+	chatGroup := api.Group("/chat")
+	chatGroup.GET("/event", httpHandlers.ServerEventHandler)
 
 	// profile模块
 	profileGroup := api.Group("/profile", customMiddleware.AuthMiddleware)

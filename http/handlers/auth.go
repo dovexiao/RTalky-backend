@@ -170,6 +170,42 @@ func GenerateCaptcha(c echo.Context) error {
 	return nil
 }
 
+// EmailCaptchaHandler godoc
+// @Summary      Generate an email captcha
+// @Description  Generate an email captcha image
+// @Tags         auth
+// @Accept       json
+// @Produce      json
+// @Param        arg query dto.EmailCaptchaArg true "request arg"
+// @Success      200  {object}  tools.ResponseI[dto.EmailCaptchaResponse]
+// @Failure      500  {object}  tools.ErrorResponse
+// @Router       /auth/captcha/email [GET]
+func EmailCaptchaHandler(c echo.Context) error {
+	var emailCaptchaArg dto.EmailCaptchaArg
+
+	if err := c.Bind(&emailCaptchaArg); err != nil {
+		logrus.Errorln("Fail to bind value to dto type: ", err)
+		responses.SetReturnValue(c, http.StatusBadRequest, responses.ParametersErrorResponse)
+		return nil
+	}
+
+	captcha, err := myservices.MakeCaptcha()
+
+	if err != nil {
+		responses.SetReturnValue(c, http.StatusInternalServerError, responses.InternalErrorResponse)
+		return nil
+	}
+
+	err = myservices.SendImageCaptchaEmail(captcha.Captcha, emailCaptchaArg.Email)
+	if err != nil {
+		responses.SetReturnValue(c, http.StatusInternalServerError, responses.InternalErrorResponse)
+		return nil
+	}
+
+	responses.SetReturnValue(c, http.StatusOK, dto.EmailCaptchaResponse{Id: captcha.Id})
+	return nil
+}
+
 // SignUpHandler godoc
 // @Summary      handle signup response
 // @Description  Handle the signup response

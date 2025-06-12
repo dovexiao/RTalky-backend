@@ -14,21 +14,16 @@ type User struct {
 	CreateAt     time.Time `json:"create_at"`
 }
 
-type Captcha struct {
-	Id      string `json:"id"`
-	Captcha string `json:"captcha"`
+type SignUpArg[T any] struct {
+	Email    string      `json:"email"`
+	Password string      `json:"password"`
+	Captcha  CaptchaI[T] `json:"captcha"`
 }
 
-type SignUpArg struct {
-	Email    string  `json:"email"`
-	Password string  `json:"password"`
-	Captcha  Captcha `json:"captcha"`
-}
-
-type LoginArg struct {
-	Username string  `json:"username"`
-	Password string  `json:"password"`
-	Captcha  Captcha `json:"captcha"`
+type LoginArg[T any] struct {
+	Username string      `json:"username"`
+	Password string      `json:"password"`
+	Captcha  CaptchaI[T] `json:"captcha"`
 }
 
 type LoginResponse struct {

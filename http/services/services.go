@@ -1,9 +1,14 @@
 package services
 
 import (
+	"RTalky/http/dto"
 	"context"
+	"github.com/wenlng/go-captcha-assets/resources/imagesv2"
+	"github.com/wenlng/go-captcha-assets/resources/tiles"
+	"github.com/wenlng/go-captcha/v2/slide"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
+	"log"
 	"os"
 	"strconv"
 
@@ -20,7 +25,7 @@ var DatabaseClient *ent.Client
 
 func Register(client *ent.Client) {
 	DatabaseClient = client
-	CaptchaExpiringMap = core.NewExpiringMap[string, string]()
+	CaptchaExpiringMap = core.NewExpiringMap[string, dto.AnswerChaker]()
 	JwtUtils = tools.NewJWTUtils(os.Getenv("JWT_SECRET"), os.Getenv("JWT_EXPIRATION_TIME_MS"))
 
 	var smtp_port int
@@ -56,4 +61,25 @@ func Register(client *ent.Client) {
 
 	mongoClient = mongodbClient
 	msgCollection = mongoClient.Database("offline").Collection("messages")
+
+	// 初始化滑动验证码生成器
+	builder := slide.NewBuilder()
+	graphs, err := tiles.GetTiles()
+	if err != nil {
+		log.Fatalln(err)
+	}
+
+	images, err := imagesv2.GetImages()
+	if err != nil {
+		log.Fatalln(err)
+	}
+
+	builder.SetResources(
+		slide.WithGraphImages(ConvertTilesToSlide(graphs)),
+		slide.WithBackgrounds(images),
+	)
+
+	slideTileCapt = builder.Make()
+	// drag-drop mode
+	//dragDropCapt = builder.MakeDragDrop()
 }

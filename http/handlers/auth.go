@@ -66,14 +66,14 @@ func Me(c echo.Context) error {
 // @Tags         auth
 // @Accept       json
 // @Produce      json
-// @Param        arg body dto.LoginArg true "request arg"
+// @Param        arg body dto.LoginArg[int] true "request arg"
 // @Success      200  {object}  tools.ResponseI[dto.LoginResponse]
 // @Success      200  {object}  tools.ErrorResponse
 // @Failure      400  {object}  tools.ErrorResponse
 // @Failure      500  {object}  tools.ErrorResponse
 // @Router       /auth/login [POST]
 func Login(c echo.Context) error {
-	var loginDTO dto.LoginArg
+	var loginDTO dto.LoginArg[int]
 
 	ctx := c.Request().Context()
 	if err := c.Bind(&loginDTO); err != nil {
@@ -149,27 +149,6 @@ func Logout(c echo.Context) error {
 	return nil
 }
 
-// GenerateCaptcha godoc
-// @Summary      Generate a captcha
-// @Description  Generate a captcha image
-// @Tags         auth
-// @Accept       json
-// @Produce      json
-// @Success      200  {object}  tools.ResponseI[dto.Captcha]
-// @Failure      500  {object}  tools.ErrorResponse
-// @Router       /auth/captcha [GET]
-func GenerateCaptcha(c echo.Context) error {
-	captcha, err := myservices.MakeCaptcha()
-
-	if err != nil {
-		responses.SetReturnValue(c, http.StatusInternalServerError, responses.InternalErrorResponse)
-		return nil
-	}
-
-	responses.SetReturnValue(c, http.StatusOK, captcha)
-	return nil
-}
-
 // EmailCaptchaHandler godoc
 // @Summary      Generate an email captcha
 // @Description  Generate an email captcha image
@@ -189,14 +168,23 @@ func EmailCaptchaHandler(c echo.Context) error {
 		return nil
 	}
 
-	captcha, err := myservices.MakeCaptcha()
+	captcha, err := myservices.MakeImageCaptcha("digit")
 
 	if err != nil {
+		logrus.Error("Fail to make image captcha: ", err)
 		responses.SetReturnValue(c, http.StatusInternalServerError, responses.InternalErrorResponse)
 		return nil
 	}
 
-	err = myservices.SendImageCaptchaEmail(captcha.Captcha, emailCaptchaArg.Email)
+	captchaImage, ok := captcha.Captcha.(string)
+
+	if !ok {
+		logrus.Error("Fail to make image captcha: fail to cast captcha to base64")
+		responses.SetReturnValue(c, http.StatusInternalServerError, responses.InternalErrorResponse)
+		return nil
+	}
+
+	err = myservices.SendImageCaptchaEmail(captchaImage, emailCaptchaArg.Email)
 	if err != nil {
 		responses.SetReturnValue(c, http.StatusInternalServerError, responses.InternalErrorResponse)
 		return nil
@@ -212,13 +200,13 @@ func EmailCaptchaHandler(c echo.Context) error {
 // @Tags         auth
 // @Accept       json
 // @Produce      json
-// @Param        arg body dto.SignUpArg true "request arg"
+// @Param        arg body dto.SignUpArg[int] true "request arg"
 // @Success      200  {object}  tools.ResponseI[string]
 // @Failure      200  {object}  tools.ErrorResponse
 // @Failure      500  {object}  tools.ErrorResponse
 // @Router       /auth/signup [POST]
 func SignUpHandler(c echo.Context) error {
-	var signupArg dto.SignUpArg
+	var signupArg dto.SignUpArg[int]
 
 	ctx := c.Request().Context()
 	if err := c.Bind(&signupArg); err != nil {

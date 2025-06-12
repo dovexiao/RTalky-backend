@@ -1,6 +1,9 @@
 package services
 
 import (
+	"context"
+	"go.mongodb.org/mongo-driver/v2/mongo"
+	"go.mongodb.org/mongo-driver/v2/mongo/options"
 	"os"
 	"strconv"
 
@@ -36,4 +39,21 @@ func Register(client *ent.Client) {
 	smtpUser := os.Getenv("SMTP_USER")
 
 	EmailDialer = gomail.NewDialer(smtpHost, smtpPort, smtpUser, smtpPass)
+
+	// 初始化mongodb
+	ctx := context.Background()
+	mongodbClient, err := mongo.Connect(options.Client().ApplyURI("mongodb://localhost:27017"))
+	if err != nil {
+		logrus.Fatal("Fail to init mongodb client: ", err)
+		panic(err)
+	}
+
+	defer func() {
+		if err = mongodbClient.Disconnect(ctx); err != nil {
+			panic(err)
+		}
+	}()
+
+	mongoClient = mongodbClient
+	msgCollection = mongoClient.Database("offline").Collection("messages")
 }

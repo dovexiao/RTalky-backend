@@ -1,6 +1,7 @@
 package services
 
 import (
+	"RTalky/database"
 	"RTalky/http/dto"
 	"context"
 	"github.com/wenlng/go-captcha-assets/resources/imagesv2"
@@ -17,17 +18,46 @@ import (
 
 	"RTalky/core"
 	"RTalky/core/tools"
-	"RTalky/database/ent"
 )
 
-var JwtUtils *tools.JWTUtils
-var DatabaseClient *ent.Client
+func Register() {
+	// 初始化数据库连接
+	dbURL := os.Getenv("DB_URL")
+	dbDriver := os.Getenv("DB_DRIVER")
 
-func Register(client *ent.Client) {
+	client, err := database.GetDataBaseClient(dbDriver, dbURL)
+	if err != nil {
+		logrus.Fatal("Fail to get database client: ", err.Error())
+		return
+	}
 	DatabaseClient = client
+
+	// 初始化验证码模块
 	CaptchaExpiringMap = core.NewExpiringMap[string, dto.AnswerChaker]()
+	builder := slide.NewBuilder()
+	graphs, err := tiles.GetTiles()
+	if err != nil {
+		log.Fatalln(err)
+	}
+
+	images, err := imagesv2.GetImages()
+	if err != nil {
+		log.Fatalln(err)
+	}
+
+	builder.SetResources(
+		slide.WithGraphImages(ConvertTilesToSlide(graphs)),
+		slide.WithBackgrounds(images),
+	)
+
+	slideTileCapt = builder.Make()
+	// drag-drop mode
+	//dragDropCapt = builder.MakeDragDrop()
+
+	// 初始化JWT模块
 	JwtUtils = tools.NewJWTUtils(os.Getenv("JWT_SECRET"), os.Getenv("JWT_EXPIRATION_TIME_MS"))
 
+	// 初始化SMTP服务
 	var smtp_port int
 	port, err := strconv.ParseInt(os.Getenv("SMTP_PORT"), 10, 31)
 
@@ -61,25 +91,4 @@ func Register(client *ent.Client) {
 
 	mongoClient = mongodbClient
 	msgCollection = mongoClient.Database("offline").Collection("messages")
-
-	// 初始化滑动验证码生成器
-	builder := slide.NewBuilder()
-	graphs, err := tiles.GetTiles()
-	if err != nil {
-		log.Fatalln(err)
-	}
-
-	images, err := imagesv2.GetImages()
-	if err != nil {
-		log.Fatalln(err)
-	}
-
-	builder.SetResources(
-		slide.WithGraphImages(ConvertTilesToSlide(graphs)),
-		slide.WithBackgrounds(images),
-	)
-
-	slideTileCapt = builder.Make()
-	// drag-drop mode
-	//dragDropCapt = builder.MakeDragDrop()
 }

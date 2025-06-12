@@ -2,7 +2,6 @@ package main
 
 import (
 	"RTalky/core/logger"
-	"RTalky/database"
 	"RTalky/http/routes"
 	"RTalky/http/services"
 	"os"
@@ -25,22 +24,13 @@ func init() {
 }
 
 func main() {
-	dbURL := os.Getenv("DB_URL")
-	dbDriver := os.Getenv("DB_DRIVER")
 	bindAddress := os.Getenv("BIND_ADDRESS")
-
-	// 启动数据库连接
-	client, err := database.GetDataBaseClient(dbDriver, dbURL)
-	if err != nil {
-		logrus.Fatal("Fail to get database client: ", err.Error())
-		return
-	}
 
 	// 启动HTTP服务器
 	e := echo.New()
 
 	routes.Register(e)
-	services.Register(client)
+	services.Register()
 
 	e.Logger.Fatal(e.Start(bindAddress))
 }

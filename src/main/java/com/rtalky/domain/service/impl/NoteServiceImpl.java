@@ -1,4 +1,4 @@
-package com.rtalky.infrastructure.domain.service;
+package com.rtalky.domain.service.impl;
 
 import com.rtalky.domain.repository.NoteRepository;
 import com.rtalky.domain.service.NoteService;
@@ -56,12 +56,12 @@ public class NoteServiceImpl implements NoteService {
         if (tags == null) {
             return true; // 标签可以为空
         }
-        
+
         // 检查标签数量
         if (tags.size() > 20) {
             return false;
         }
-        
+
         // 检查每个标签的长度
         for (String tag : tags) {
             if (tag == null || tag.trim().isEmpty()) {
@@ -71,7 +71,7 @@ public class NoteServiceImpl implements NoteService {
                 return false;
             }
         }
-        
+
         return true;
     }
 

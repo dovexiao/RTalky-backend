@@ -5,6 +5,10 @@ import com.rtalky.application.dto.LoginResponse;
 import com.rtalky.application.dto.SmsSendRequest;
 import com.rtalky.application.dto.UserInfoResponse;
 import com.rtalky.application.dto.UpdateUserInfoRequest;
+import com.rtalky.application.dto.PasswordSmsSendRequest;
+import com.rtalky.application.dto.PasswordSetRequest;
+import com.rtalky.application.dto.PasswordChangeRequest;
+import com.rtalky.application.dto.PasswordResponse;
 
 /**
  * 认证应用服务接口
@@ -84,4 +88,31 @@ public interface AuthenticationAppService {
      * @return 更新后的用户信息
      */
     UserInfoResponse.UserInfo updateUserInfo(String sessionToken, UpdateUserInfoRequest request);
+
+    /**
+     * 发送密码设置短信验证码
+     *
+     * @param sessionToken 会话令牌
+     * @param request 密码设置短信发送请求
+     * @return 发送结果
+     */
+    PasswordResponse sendPasswordSmsCode(String sessionToken, PasswordSmsSendRequest request);
+
+    /**
+     * 设置密码（首次补设/重置密码）
+     *
+     * @param sessionToken 会话令牌
+     * @param request 密码设置请求
+     * @return 设置结果
+     */
+    PasswordResponse setPassword(String sessionToken, PasswordSetRequest request);
+
+    /**
+     * 修改密码（知道旧密码）
+     *
+     * @param sessionToken 会话令牌
+     * @param request 密码修改请求
+     * @return 修改结果
+     */
+    PasswordResponse changePassword(String sessionToken, PasswordChangeRequest request);
 }

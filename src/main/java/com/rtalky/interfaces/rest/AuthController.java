@@ -7,11 +7,16 @@ import com.rtalky.application.dto.SmsSendRequest;
 import com.rtalky.application.dto.SmsSendResponse;
 import com.rtalky.application.dto.UserInfoResponse;
 import com.rtalky.application.dto.UpdateUserInfoRequest;
+import com.rtalky.application.dto.PasswordSmsSendRequest;
+import com.rtalky.application.dto.PasswordSetRequest;
+import com.rtalky.application.dto.PasswordChangeRequest;
+import com.rtalky.application.dto.PasswordResponse;
 import com.rtalky.application.exception.SmsSendException;
+import com.rtalky.domain.model.AuthMethod;
 import com.rtalky.application.exception.SmsLoginException;
+import com.rtalky.application.exception.PasswordLoginException;
 import com.rtalky.application.exception.SessionValidationException;
 import com.rtalky.application.service.AuthenticationAppService;
-import com.rtalky.domain.model.AuthMethod;
 import com.rtalky.interfaces.converter.AuthParameterConverter;
 import com.rtalky.interfaces.converter.DeviceInfoConverter;
 import com.rtalky.interfaces.converter.LoginConverter;
@@ -364,61 +369,152 @@ public class AuthController {
     /**
      * 密码登录
      */
-//    @PostMapping("/password-login")
-//    @Operation(
-//        summary = "密码登录",
-//        description = "使用手机号和密码进行用户认证，支持自动注册新用户"
-//    )
-//    @ApiResponses(value = {
-//        @ApiResponse(
-//            responseCode = "200",
-//            description = "登录成功",
-//            content = @Content(
-//                mediaType = "application/json",
-//                schema = @Schema(implementation = LoginResponse.class)
-//            )
-//        ),
-//        @ApiResponse(
-//            responseCode = "400",
-//            description = "请求参数错误",
-//            content = @Content(
-//                mediaType = "application/json",
-//                schema = @Schema(implementation = ResponseBuilder.SimpleResponse.class)
-//            )
-//        )
-//    })
-//    public ResponseEntity<?> passwordLogin(
-//        @Parameter(
-//            description = "密码登录请求参数",
-//            required = true,
-//            schema = @Schema(implementation = LoginRequest.class)
-//        )
-//        @Valid @RequestBody LoginRequest request
-//    ) {
-//        log.info("密码登录请求: phoneNumber={}", request.getPhoneNumber());
-//
-//        // 验证认证方式
-//        if (request.getAuthMethod() != AuthMethod.PASSWORD) {
-//            return ResponseEntity.badRequest()
-//                    .body(responseBuilder.buildSimpleResponse(false, "认证方式不匹配"));
-//        }
-//
-//        // 验证协议同意状态
-//        if (!request.getAgreedToTerms()) {
-//            return ResponseEntity.badRequest()
-//                    .body(responseBuilder.buildSimpleResponse(false, "必须同意用户协议和隐私政策"));
-//        }
-//
-//        try {
-//            LoginResponse response = authenticationAppService.passwordLogin(request);
-//            log.info("密码登录成功: userId={}", response.getUserId());
-//            return ResponseEntity.ok(response);
-//        } catch (Exception e) {
-//            log.error("密码登录失败: phoneNumber={}, error={}",
-//                    request.getPhoneNumber(), e.getMessage(), e);
-//            return handleLoginException(e);
-//        }
-//    }
+    @PostMapping("/password-login")
+    @Operation(
+        summary = "密码登录",
+        description = "使用手机号和密码进行用户认证。需要用户已设置密码且同意用户协议。"
+    )
+    @ApiResponses(value = {
+        @ApiResponse(
+            responseCode = "200",
+            description = "登录成功",
+            content = @Content(
+                mediaType = "application/json",
+                schema = @Schema(implementation = LoginApiResponse.class),
+                examples = @ExampleObject(
+                    name = "登录成功",
+                    value = "{\"success\":true,\"message\":\"登录成功\",\"timestamp\":\"2024-01-01T12:00:00\",\"data\":{\"userId\":\"U123456789\",\"phoneNumber\":\"13800138000\",\"sessionToken\":\"token123\",\"loginTime\":\"2024-01-01T12:00:00\",\"tokenExpiryTime\":\"2024-01-02T12:00:00\",\"userProfile\":{\"nickname\":\"用户昵称\",\"avatar\":\"data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD...\",\"bio\":\"个人简介\"}}}"
+                )
+            )
+        ),
+        @ApiResponse(
+            responseCode = "400",
+            description = "请求参数错误",
+            content = @Content(
+                mediaType = "application/json",
+                schema = @Schema(implementation = LoginApiResponse.class),
+                examples = {
+                    @ExampleObject(
+                        name = "认证方式不匹配",
+                        value = "{\"success\":false,\"message\":\"认证方式不匹配，当前请求不是密码登录\",\"timestamp\":\"2024-01-01T12:00:00\",\"data\":null}"
+                    ),
+                    @ExampleObject(
+                        name = "手机号为空",
+                        value = "{\"success\":false,\"message\":\"手机号不能为空\",\"timestamp\":\"2024-01-01T12:00:00\",\"data\":null}"
+                    ),
+                    @ExampleObject(
+                        name = "密码为空",
+                        value = "{\"success\":false,\"message\":\"密码不能为空\",\"timestamp\":\"2024-01-01T12:00:00\",\"data\":null}"
+                    ),
+                    @ExampleObject(
+                        name = "未同意协议",
+                        value = "{\"success\":false,\"message\":\"必须同意用户协议和隐私政策\",\"timestamp\":\"2024-01-01T12:00:00\",\"data\":null}"
+                    )
+                }
+            )
+        ),
+        @ApiResponse(
+            responseCode = "401",
+            description = "认证失败",
+            content = @Content(
+                mediaType = "application/json",
+                schema = @Schema(implementation = LoginApiResponse.class),
+                examples = {
+                    @ExampleObject(
+                        name = "密码错误",
+                        value = "{\"success\":false,\"message\":\"密码错误\",\"timestamp\":\"2024-01-01T12:00:00\",\"data\":null}"
+                    ),
+                    @ExampleObject(
+                        name = "用户不存在",
+                        value = "{\"success\":false,\"message\":\"用户不存在\",\"timestamp\":\"2024-01-01T12:00:00\",\"data\":null}"
+                    ),
+                    @ExampleObject(
+                        name = "账号被禁用",
+                        value = "{\"success\":false,\"message\":\"用户账号不可用\",\"timestamp\":\"2024-01-01T12:00:00\",\"data\":null}"
+                    ),
+                    @ExampleObject(
+                        name = "未设置密码",
+                        value = "{\"success\":false,\"message\":\"请先设置密码\",\"timestamp\":\"2024-01-01T12:00:00\",\"data\":null}"
+                    )
+                }
+            )
+        ),
+        @ApiResponse(
+            responseCode = "429",
+            description = "请求过于频繁",
+            content = @Content(
+                mediaType = "application/json",
+                schema = @Schema(implementation = LoginApiResponse.class),
+                examples = @ExampleObject(
+                    name = "设备受限",
+                    value = "{\"success\":false,\"message\":\"操作受限，请稍后再试\",\"timestamp\":\"2024-01-01T12:00:00\",\"data\":null}"
+                )
+            )
+        ),
+        @ApiResponse(
+            responseCode = "500",
+            description = "服务器内部错误",
+            content = @Content(
+                mediaType = "application/json",
+                schema = @Schema(implementation = LoginApiResponse.class),
+                examples = @ExampleObject(
+                    name = "系统异常",
+                    value = "{\"success\":false,\"message\":\"系统异常，请稍后重试\",\"timestamp\":\"2024-01-01T12:00:00\",\"data\":null}"
+                )
+            )
+        )
+    })
+    public ResponseEntity<LoginApiResponse> passwordLogin(
+        @Parameter(
+            description = "密码登录请求参数，包含手机号、密码、设备信息和协议同意状态",
+            required = true,
+            schema = @Schema(implementation = LoginRequest.class)
+        )
+        @Valid @RequestBody LoginRequest request
+    ) {
+        log.info("密码登录请求: phoneNumber={}", request.getPhoneNumber());
+
+        try {
+            LoginResponse loginData = authenticationAppService.passwordLogin(request);
+            log.info("密码登录成功: userId={}, phoneNumber={}", loginData.getUserId(), request.getPhoneNumber());
+            return ResponseEntity.ok(responseBuilder.buildLoginSuccessResponse("登录成功", loginData));
+
+        } catch (PasswordLoginException e) {
+            log.warn("密码登录业务异常: phoneNumber={}, errorCode={}, message={}",
+                request.getPhoneNumber(), e.getErrorCode().getCode(), e.getMessage());
+
+            // 根据错误码返回不同的HTTP状态码
+            if (e.getErrorCode() == PasswordLoginException.PasswordLoginErrorCode.AUTH_METHOD_MISMATCH ||
+                e.getErrorCode() == PasswordLoginException.PasswordLoginErrorCode.PHONE_NUMBER_REQUIRED ||
+                e.getErrorCode() == PasswordLoginException.PasswordLoginErrorCode.PASSWORD_REQUIRED ||
+                e.getErrorCode() == PasswordLoginException.PasswordLoginErrorCode.AGREEMENT_NOT_ACCEPTED) {
+                // 客户端错误，返回400
+                return ResponseEntity.badRequest()
+                        .body(responseBuilder.buildLoginFailureResponse(e.getMessage()));
+            } else if (e.getErrorCode() == PasswordLoginException.PasswordLoginErrorCode.PASSWORD_INVALID ||
+                       e.getErrorCode() == PasswordLoginException.PasswordLoginErrorCode.USER_NOT_FOUND ||
+                       e.getErrorCode() == PasswordLoginException.PasswordLoginErrorCode.ACCOUNT_DISABLED ||
+                       e.getErrorCode() == PasswordLoginException.PasswordLoginErrorCode.ACCOUNT_LOCKED ||
+                       e.getErrorCode() == PasswordLoginException.PasswordLoginErrorCode.PASSWORD_NOT_SET) {
+                // 认证失败，返回401
+                return ResponseEntity.status(401)
+                        .body(responseBuilder.buildLoginFailureResponse(e.getMessage()));
+            } else if (e.getErrorCode() == PasswordLoginException.PasswordLoginErrorCode.DEVICE_LIMITED) {
+                // 请求过于频繁，返回429
+                return ResponseEntity.status(429)
+                        .body(responseBuilder.buildLoginFailureResponse(e.getMessage()));
+            } else {
+                // 服务器错误，返回500
+                return ResponseEntity.internalServerError()
+                        .body(responseBuilder.buildLoginFailureResponse(e.getMessage()));
+            }
+        } catch (Exception e) {
+            log.error("密码登录系统异常: phoneNumber={}, error={}", 
+                request.getPhoneNumber(), e.getMessage(), e);
+            return ResponseEntity.internalServerError()
+                    .body(responseBuilder.buildLoginFailureResponse("系统异常，请稍后重试"));
+        }
+    }
 
     /**
      * 统一登录接口（根据authMethod自动路由）
@@ -990,24 +1086,6 @@ public class AuthController {
     }
 
     /**
-     * 处理登录异常
-     */
-    private ResponseEntity<?> handleLoginException(Exception e) {
-        String errorMessage = "登录失败，请稍后重试";
-
-        if (e instanceof SecurityException) {
-            errorMessage = e.getMessage();
-        } else if (e instanceof IllegalArgumentException) {
-            errorMessage = e.getMessage();
-        } else if (e instanceof IllegalStateException) {
-            errorMessage = e.getMessage();
-        }
-
-        return ResponseEntity.badRequest()
-                .body(responseBuilder.buildErrorResponse(errorMessage));
-    }
-
-    /**
      * 从Authorization头中提取令牌
      */
     private String extractTokenFromHeader(String authorization) {
@@ -1015,5 +1093,565 @@ public class AuthController {
             return authorization.substring(7);
         }
         return null;
+    }
+
+    /**
+     * 发送密码设置短信验证码
+     */
+    @PostMapping("/password/sms-code")
+    @Operation(
+        summary = "发送密码设置短信验证码",
+        description = "向指定手机号发送短信验证码，用于密码设置验证。需要用户已登录，支持限流保护，防止恶意请求。"
+    )
+    @ApiResponses(value = {
+        @ApiResponse(
+            responseCode = "200",
+            description = "短信发送成功",
+            content = @Content(
+                mediaType = "application/json",
+                schema = @Schema(implementation = SmsSendResponse.class),
+                examples = @ExampleObject(
+                    name = "发送成功",
+                    value = "{\"success\":true,\"message\":\"短信验证码发送成功\",\"timestamp\":\"2024-01-01T12:00:00\",\"codeDigits\":6}"
+                )
+            )
+        ),
+        @ApiResponse(
+            responseCode = "400",
+            description = "请求参数错误",
+            content = @Content(
+                mediaType = "application/json",
+                schema = @Schema(implementation = SmsSendResponse.class),
+                examples = @ExampleObject(
+                    name = "缺少Authorization头",
+                    value = "{\"success\":false,\"message\":\"缺少Authorization头\",\"timestamp\":\"2024-01-01T12:00:00\",\"codeDigits\":null}"
+                )
+            )
+        ),
+        @ApiResponse(
+            responseCode = "401",
+            description = "未授权",
+            content = @Content(
+                mediaType = "application/json",
+                schema = @Schema(implementation = SmsSendResponse.class),
+                examples = @ExampleObject(
+                    name = "会话无效",
+                    value = "{\"success\":false,\"message\":\"会话已过期，请重新登录\",\"timestamp\":\"2024-01-01T12:00:00\",\"codeDigits\":null}"
+                )
+            )
+        ),
+        @ApiResponse(
+            responseCode = "429",
+            description = "请求过于频繁",
+            content = @Content(
+                mediaType = "application/json",
+                schema = @Schema(implementation = SmsSendResponse.class),
+                examples = @ExampleObject(
+                    name = "设备限流",
+                    value = "{\"success\":false,\"message\":\"操作受限，请稍后再试\",\"timestamp\":\"2024-01-01T12:00:00\",\"codeDigits\":null}"
+                )
+            )
+        ),
+        @ApiResponse(
+            responseCode = "500",
+            description = "短信发送失败",
+            content = @Content(
+                mediaType = "application/json",
+                schema = @Schema(implementation = SmsSendResponse.class),
+                examples = @ExampleObject(
+                    name = "发送失败",
+                    value = "{\"success\":false,\"message\":\"短信验证码发送失败，请稍后重试\",\"timestamp\":\"2024-01-01T12:00:00\",\"codeDigits\":null}"
+                )
+            )
+        )
+    })
+    public ResponseEntity<SmsSendResponse> sendPasswordSmsCode(
+        @Parameter(
+            description = "Bearer Token，格式：Bearer {token}。用于验证用户身份。",
+            required = true,
+            example = "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+        )
+        @RequestHeader(value = "Authorization", required = false) String authorization,
+        @Parameter(
+            description = "密码设置短信发送请求参数，包含手机号、设备信息和新密码",
+            required = true,
+            schema = @Schema(implementation = PasswordSmsSendRequest.class)
+        )
+        @Valid @RequestBody PasswordSmsSendRequest request
+    ) {
+        log.info("请求发送密码设置短信验证码: phoneNumber={}", request.getPhoneNumber());
+
+        try {
+            // 检查Authorization头是否存在
+            if (authorization == null || authorization.trim().isEmpty()) {
+                log.warn("缺少Authorization头");
+                return ResponseEntity.badRequest()
+                        .body(responseBuilder.buildSmsSendFailureResponse("缺少Authorization头"));
+            }
+
+            String sessionToken = extractTokenFromHeader(authorization);
+            if (sessionToken == null) {
+                log.warn("Authorization头格式无效: {}", authorization);
+                return ResponseEntity.badRequest()
+                        .body(responseBuilder.buildSmsSendFailureResponse("Authorization头格式无效"));
+            }
+
+            // 验证会话
+            String userId = authenticationAppService.validateSession(sessionToken);
+            log.debug("会话验证成功: sessionToken={}, userId={}", sessionToken, userId);
+
+            PasswordResponse response = authenticationAppService.sendPasswordSmsCode(sessionToken, request);
+            
+            if (response.isSuccess()) {
+                log.info("密码设置短信验证码发送成功: phoneNumber={}, codeDigits={}", request.getPhoneNumber(), smsCodeDigits);
+                return ResponseEntity.ok(responseBuilder.buildSmsSendSuccessResponse("短信验证码发送成功", smsCodeDigits));
+            } else {
+                log.warn("密码设置短信验证码发送失败: phoneNumber={}, message={}", 
+                    request.getPhoneNumber(), response.getMessage());
+                return ResponseEntity.internalServerError()
+                        .body(responseBuilder.buildSmsSendFailureResponse(response.getMessage()));
+            }
+        } catch (SessionValidationException e) {
+            log.warn("密码设置短信发送会话验证异常: errorCode={}, message={}", 
+                e.getErrorCode().getCode(), e.getMessage());
+
+            // 根据错误码返回不同的HTTP状态码
+            if (e.getErrorCode() == SessionValidationException.SessionValidationErrorCode.TOKEN_REQUIRED ||
+                e.getErrorCode() == SessionValidationException.SessionValidationErrorCode.INVALID_TOKEN_FORMAT) {
+                // 客户端错误，返回400
+                return ResponseEntity.badRequest()
+                        .body(responseBuilder.buildSmsSendFailureResponse(e.getMessage()));
+            } else if (e.getErrorCode() == SessionValidationException.SessionValidationErrorCode.TOKEN_NOT_FOUND ||
+                       e.getErrorCode() == SessionValidationException.SessionValidationErrorCode.TOKEN_EXPIRED ||
+                       e.getErrorCode() == SessionValidationException.SessionValidationErrorCode.TOKEN_INVALID ||
+                       e.getErrorCode() == SessionValidationException.SessionValidationErrorCode.USER_NOT_FOUND ||
+                       e.getErrorCode() == SessionValidationException.SessionValidationErrorCode.USER_DISABLED ||
+                       e.getErrorCode() == SessionValidationException.SessionValidationErrorCode.USER_LOCKED) {
+                // 认证失败，返回401
+                return ResponseEntity.status(401)
+                        .body(responseBuilder.buildSmsSendFailureResponse(e.getMessage()));
+            } else {
+                // 服务器错误，返回500
+                return ResponseEntity.internalServerError()
+                        .body(responseBuilder.buildSmsSendFailureResponse(e.getMessage()));
+            }
+        } catch (SmsSendException e) {
+            log.warn("密码设置短信发送业务异常: phoneNumber={}, errorCode={}, message={}",
+                request.getPhoneNumber(), e.getErrorCode().getCode(), e.getMessage());
+
+            // 根据错误码返回不同的HTTP状态码
+            if (e.getErrorCode() == SmsSendException.SmsSendErrorCode.INVALID_PHONE_NUMBER ||
+                e.getErrorCode() == SmsSendException.SmsSendErrorCode.PHONE_NUMBER_REQUIRED) {
+                // 客户端错误，返回400
+                return ResponseEntity.badRequest()
+                        .body(responseBuilder.buildSmsSendFailureResponse(e.getMessage()));
+            } else if (e.getErrorCode() == SmsSendException.SmsSendErrorCode.DEVICE_LIMITED ||
+                       e.getErrorCode() == SmsSendException.SmsSendErrorCode.SMS_ALREADY_SENT) {
+                // 请求过于频繁，返回429
+                return ResponseEntity.status(429)
+                        .body(responseBuilder.buildSmsSendFailureResponse(e.getMessage()));
+            } else {
+                // 服务器错误，返回500
+                return ResponseEntity.internalServerError()
+                        .body(responseBuilder.buildSmsSendFailureResponse(e.getMessage()));
+            }
+        } catch (Exception e) {
+            log.error("发送密码设置短信验证码系统异常: phoneNumber={}, error={}", 
+                request.getPhoneNumber(), e.getMessage(), e);
+            return ResponseEntity.internalServerError()
+                    .body(responseBuilder.buildSmsSendFailureResponse("系统异常，请稍后重试"));
+        }
+    }
+
+    /**
+     * 设置密码（首次补设/重置密码）
+     */
+    @PostMapping("/password/set")
+    @Operation(
+        summary = "设置密码",
+        description = "设置用户密码，支持首次补设和重置密码。需要先调用发送密码设置短信验证码接口，然后使用验证码完成密码设置。"
+    )
+    @ApiResponses(value = {
+        @ApiResponse(
+            responseCode = "200",
+            description = "密码设置成功",
+            content = @Content(
+                mediaType = "application/json",
+                schema = @Schema(implementation = PasswordResponse.class),
+                examples = @ExampleObject(
+                    name = "设置成功",
+                    value = "{\"success\":true,\"message\":\"密码设置成功\",\"timestamp\":\"2024-01-01T12:00:00\"}"
+                )
+            )
+        ),
+        @ApiResponse(
+            responseCode = "400",
+            description = "请求参数错误",
+            content = @Content(
+                mediaType = "application/json",
+                schema = @Schema(implementation = PasswordResponse.class),
+                examples = @ExampleObject(
+                    name = "缺少Authorization头",
+                    value = "{\"success\":false,\"message\":\"缺少Authorization头\",\"timestamp\":\"2024-01-01T12:00:00\"}"
+                )
+            )
+        ),
+        @ApiResponse(
+            responseCode = "401",
+            description = "未授权",
+            content = @Content(
+                mediaType = "application/json",
+                schema = @Schema(implementation = PasswordResponse.class),
+                examples = @ExampleObject(
+                    name = "会话无效",
+                    value = "{\"success\":false,\"message\":\"会话已过期，请重新登录\",\"timestamp\":\"2024-01-01T12:00:00\"}"
+                )
+            )
+        ),
+        @ApiResponse(
+            responseCode = "422",
+            description = "业务逻辑错误",
+            content = @Content(
+                mediaType = "application/json",
+                schema = @Schema(implementation = PasswordResponse.class),
+                examples = @ExampleObject(
+                    name = "验证码无效",
+                    value = "{\"success\":false,\"message\":\"短信验证码无效或已过期\",\"timestamp\":\"2024-01-01T12:00:00\"}"
+                )
+            )
+        ),
+        @ApiResponse(
+            responseCode = "410",
+            description = "会话已过期",
+            content = @Content(
+                mediaType = "application/json",
+                schema = @Schema(implementation = PasswordResponse.class),
+                examples = @ExampleObject(
+                    name = "密码设置会话过期",
+                    value = "{\"success\":false,\"message\":\"密码设置会话已过期，请重新开始\",\"timestamp\":\"2024-01-01T12:00:00\"}"
+                )
+            )
+        ),
+        @ApiResponse(
+            responseCode = "429",
+            description = "请求过于频繁",
+            content = @Content(
+                mediaType = "application/json",
+                schema = @Schema(implementation = PasswordResponse.class),
+                examples = @ExampleObject(
+                    name = "操作受限",
+                    value = "{\"success\":false,\"message\":\"操作受限，请稍后再试\",\"timestamp\":\"2024-01-01T12:00:00\"}"
+                )
+            )
+        ),
+        @ApiResponse(
+            responseCode = "500",
+            description = "系统异常",
+            content = @Content(
+                mediaType = "application/json",
+                schema = @Schema(implementation = PasswordResponse.class),
+                examples = @ExampleObject(
+                    name = "系统异常",
+                    value = "{\"success\":false,\"message\":\"系统异常，请稍后重试\",\"timestamp\":\"2024-01-01T12:00:00\"}"
+                )
+            )
+        )
+    })
+    public ResponseEntity<PasswordResponse> setPassword(
+        @Parameter(
+            description = "Bearer Token，格式：Bearer {token}。用于验证用户身份。",
+            required = true,
+            example = "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+        )
+        @RequestHeader(value = "Authorization", required = false) String authorization,
+        @Parameter(
+            description = "密码设置请求参数，包含手机号和短信验证码",
+            required = true,
+            schema = @Schema(implementation = PasswordSetRequest.class)
+        )
+        @Valid @RequestBody PasswordSetRequest request
+    ) {
+        log.info("请求设置密码: phoneNumber={}", request.getPhoneNumber());
+
+        try {
+            // 检查Authorization头是否存在
+            if (authorization == null || authorization.trim().isEmpty()) {
+                log.warn("缺少Authorization头");
+                return ResponseEntity.badRequest()
+                        .body(new PasswordResponse(false, "缺少Authorization头", java.time.LocalDateTime.now()));
+            }
+
+            String sessionToken = extractTokenFromHeader(authorization);
+            if (sessionToken == null) {
+                log.warn("Authorization头格式无效: {}", authorization);
+                return ResponseEntity.badRequest()
+                        .body(new PasswordResponse(false, "Authorization头格式无效", java.time.LocalDateTime.now()));
+            }
+
+            PasswordResponse response = authenticationAppService.setPassword(sessionToken, request);
+            
+            if (response.isSuccess()) {
+                log.info("密码设置成功: phoneNumber={}", request.getPhoneNumber());
+                return ResponseEntity.ok(response);
+            } else {
+                log.warn("密码设置失败: phoneNumber={}, message={}", 
+                    request.getPhoneNumber(), response.getMessage());
+                
+                // 根据错误类型返回不同的HTTP状态码
+                if (response.getMessage().contains("会话") || response.getMessage().contains("登录")) {
+                    return ResponseEntity.status(401).body(response);
+                } else if (response.getMessage().contains("验证码")) {
+                    return ResponseEntity.status(422).body(response);
+                } else if (response.getMessage().contains("会话已过期") || response.getMessage().contains("重新开始")) {
+                    return ResponseEntity.status(410).body(response);
+                } else {
+                    return ResponseEntity.internalServerError().body(response);
+                }
+            }
+        } catch (SessionValidationException e) {
+            log.warn("设置密码会话验证异常: errorCode={}, message={}", 
+                e.getErrorCode().getCode(), e.getMessage());
+
+            // 根据错误码返回不同的HTTP状态码
+            if (e.getErrorCode() == SessionValidationException.SessionValidationErrorCode.TOKEN_REQUIRED ||
+                e.getErrorCode() == SessionValidationException.SessionValidationErrorCode.INVALID_TOKEN_FORMAT) {
+                // 客户端错误，返回400
+                return ResponseEntity.badRequest()
+                        .body(new PasswordResponse(false, e.getMessage(), java.time.LocalDateTime.now()));
+            } else if (e.getErrorCode() == SessionValidationException.SessionValidationErrorCode.TOKEN_NOT_FOUND ||
+                       e.getErrorCode() == SessionValidationException.SessionValidationErrorCode.TOKEN_EXPIRED ||
+                       e.getErrorCode() == SessionValidationException.SessionValidationErrorCode.TOKEN_INVALID ||
+                       e.getErrorCode() == SessionValidationException.SessionValidationErrorCode.USER_NOT_FOUND ||
+                       e.getErrorCode() == SessionValidationException.SessionValidationErrorCode.USER_DISABLED ||
+                       e.getErrorCode() == SessionValidationException.SessionValidationErrorCode.USER_LOCKED) {
+                // 认证失败，返回401
+                return ResponseEntity.status(401)
+                        .body(new PasswordResponse(false, e.getMessage(), java.time.LocalDateTime.now()));
+            } else {
+                // 服务器错误，返回500
+                return ResponseEntity.internalServerError()
+                        .body(new PasswordResponse(false, e.getMessage(), java.time.LocalDateTime.now()));
+            }
+        } catch (SmsSendException e) {
+            log.warn("设置密码短信验证异常: phoneNumber={}, errorCode={}, message={}",
+                request.getPhoneNumber(), e.getErrorCode().getCode(), e.getMessage());
+
+            // 根据错误码返回不同的HTTP状态码
+            if (e.getErrorCode() == SmsSendException.SmsSendErrorCode.INVALID_PHONE_NUMBER ||
+                e.getErrorCode() == SmsSendException.SmsSendErrorCode.PHONE_NUMBER_REQUIRED) {
+                // 客户端错误，返回400
+                return ResponseEntity.badRequest()
+                        .body(new PasswordResponse(false, e.getMessage(), java.time.LocalDateTime.now()));
+            } else if (e.getErrorCode() == SmsSendException.SmsSendErrorCode.DEVICE_LIMITED ||
+                       e.getErrorCode() == SmsSendException.SmsSendErrorCode.SMS_ALREADY_SENT) {
+                // 请求过于频繁，返回429
+                return ResponseEntity.status(429)
+                        .body(new PasswordResponse(false, e.getMessage(), java.time.LocalDateTime.now()));
+            } else {
+                // 服务器错误，返回500
+                return ResponseEntity.internalServerError()
+                        .body(new PasswordResponse(false, e.getMessage(), java.time.LocalDateTime.now()));
+            }
+        } catch (Exception e) {
+            log.error("设置密码系统异常: phoneNumber={}, error={}", 
+                request.getPhoneNumber(), e.getMessage(), e);
+            return ResponseEntity.internalServerError()
+                    .body(new PasswordResponse(false, "系统异常，请稍后重试", java.time.LocalDateTime.now()));
+        }
+    }
+
+    /**
+     * 修改密码（知道旧密码）
+     */
+    @PostMapping("/password/change")
+    @Operation(
+        summary = "修改密码",
+        description = "修改用户密码，需要提供旧密码进行验证。适用于用户记得旧密码的情况。需要用户已登录且已设置密码。"
+    )
+    @ApiResponses(value = {
+        @ApiResponse(
+            responseCode = "200",
+            description = "密码修改成功",
+            content = @Content(
+                mediaType = "application/json",
+                schema = @Schema(implementation = PasswordResponse.class),
+                examples = @ExampleObject(
+                    name = "修改成功",
+                    value = "{\"success\":true,\"message\":\"密码修改成功\",\"timestamp\":\"2024-01-01T12:00:00\"}"
+                )
+            )
+        ),
+        @ApiResponse(
+            responseCode = "400",
+            description = "请求参数错误",
+            content = @Content(
+                mediaType = "application/json",
+                schema = @Schema(implementation = PasswordResponse.class),
+                examples = @ExampleObject(
+                    name = "缺少Authorization头",
+                    value = "{\"success\":false,\"message\":\"缺少Authorization头\",\"timestamp\":\"2024-01-01T12:00:00\"}"
+                )
+            )
+        ),
+        @ApiResponse(
+            responseCode = "401",
+            description = "未授权",
+            content = @Content(
+                mediaType = "application/json",
+                schema = @Schema(implementation = PasswordResponse.class),
+                examples = @ExampleObject(
+                    name = "会话无效",
+                    value = "{\"success\":false,\"message\":\"会话已过期，请重新登录\",\"timestamp\":\"2024-01-01T12:00:00\"}"
+                )
+            )
+        ),
+        @ApiResponse(
+            responseCode = "422",
+            description = "业务逻辑错误",
+            content = @Content(
+                mediaType = "application/json",
+                schema = @Schema(implementation = PasswordResponse.class),
+                examples = @ExampleObject(
+                    name = "旧密码错误",
+                    value = "{\"success\":false,\"message\":\"旧密码不正确\",\"timestamp\":\"2024-01-01T12:00:00\"}"
+                )
+            )
+        ),
+        @ApiResponse(
+            responseCode = "410",
+            description = "前置条件不满足",
+            content = @Content(
+                mediaType = "application/json",
+                schema = @Schema(implementation = PasswordResponse.class),
+                examples = @ExampleObject(
+                    name = "未设置密码",
+                    value = "{\"success\":false,\"message\":\"请先设置密码\",\"timestamp\":\"2024-01-01T12:00:00\"}"
+                )
+            )
+        ),
+        @ApiResponse(
+            responseCode = "429",
+            description = "请求过于频繁",
+            content = @Content(
+                mediaType = "application/json",
+                schema = @Schema(implementation = PasswordResponse.class),
+                examples = @ExampleObject(
+                    name = "操作受限",
+                    value = "{\"success\":false,\"message\":\"操作受限，请稍后再试\",\"timestamp\":\"2024-01-01T12:00:00\"}"
+                )
+            )
+        ),
+        @ApiResponse(
+            responseCode = "500",
+            description = "系统异常",
+            content = @Content(
+                mediaType = "application/json",
+                schema = @Schema(implementation = PasswordResponse.class),
+                examples = @ExampleObject(
+                    name = "系统异常",
+                    value = "{\"success\":false,\"message\":\"系统异常，请稍后重试\",\"timestamp\":\"2024-01-01T12:00:00\"}"
+                )
+            )
+        )
+    })
+    public ResponseEntity<PasswordResponse> changePassword(
+        @Parameter(
+            description = "Bearer Token，格式：Bearer {token}。用于验证用户身份。",
+            required = true,
+            example = "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+        )
+        @RequestHeader(value = "Authorization", required = false) String authorization,
+        @Parameter(
+            description = "密码修改请求参数",
+            required = true,
+            schema = @Schema(implementation = PasswordChangeRequest.class)
+        )
+        @Valid @RequestBody PasswordChangeRequest request
+    ) {
+        log.info("请求修改密码");
+
+        try {
+            // 检查Authorization头是否存在
+            if (authorization == null || authorization.trim().isEmpty()) {
+                log.warn("缺少Authorization头");
+                return ResponseEntity.badRequest()
+                        .body(new PasswordResponse(false, "缺少Authorization头", java.time.LocalDateTime.now()));
+            }
+
+            String sessionToken = extractTokenFromHeader(authorization);
+            if (sessionToken == null) {
+                log.warn("Authorization头格式无效: {}", authorization);
+                return ResponseEntity.badRequest()
+                        .body(new PasswordResponse(false, "Authorization头格式无效", java.time.LocalDateTime.now()));
+            }
+
+            PasswordResponse response = authenticationAppService.changePassword(sessionToken, request);
+            
+            if (response.isSuccess()) {
+                log.info("密码修改成功");
+                return ResponseEntity.ok(response);
+            } else {
+                log.warn("密码修改失败: message={}", response.getMessage());
+                
+                // 根据错误类型返回不同的HTTP状态码
+                if (response.getMessage().contains("会话") || response.getMessage().contains("登录")) {
+                    return ResponseEntity.status(401).body(response);
+                } else if (response.getMessage().contains("旧密码") || response.getMessage().contains("密码强度")) {
+                    return ResponseEntity.status(422).body(response);
+                } else if (response.getMessage().contains("请先设置密码")) {
+                    return ResponseEntity.status(410).body(response);
+                } else {
+                    return ResponseEntity.internalServerError().body(response);
+                }
+            }
+        } catch (SessionValidationException e) {
+            log.warn("修改密码会话验证异常: errorCode={}, message={}", 
+                e.getErrorCode().getCode(), e.getMessage());
+
+            // 根据错误码返回不同的HTTP状态码
+            if (e.getErrorCode() == SessionValidationException.SessionValidationErrorCode.TOKEN_REQUIRED ||
+                e.getErrorCode() == SessionValidationException.SessionValidationErrorCode.INVALID_TOKEN_FORMAT) {
+                // 客户端错误，返回400
+                return ResponseEntity.badRequest()
+                        .body(new PasswordResponse(false, e.getMessage(), java.time.LocalDateTime.now()));
+            } else if (e.getErrorCode() == SessionValidationException.SessionValidationErrorCode.TOKEN_NOT_FOUND ||
+                       e.getErrorCode() == SessionValidationException.SessionValidationErrorCode.TOKEN_EXPIRED ||
+                       e.getErrorCode() == SessionValidationException.SessionValidationErrorCode.TOKEN_INVALID ||
+                       e.getErrorCode() == SessionValidationException.SessionValidationErrorCode.USER_NOT_FOUND ||
+                       e.getErrorCode() == SessionValidationException.SessionValidationErrorCode.USER_DISABLED ||
+                       e.getErrorCode() == SessionValidationException.SessionValidationErrorCode.USER_LOCKED) {
+                // 认证失败，返回401
+                return ResponseEntity.status(401)
+                        .body(new PasswordResponse(false, e.getMessage(), java.time.LocalDateTime.now()));
+            } else {
+                // 服务器错误，返回500
+                return ResponseEntity.internalServerError()
+                        .body(new PasswordResponse(false, e.getMessage(), java.time.LocalDateTime.now()));
+            }
+        } catch (SmsSendException e) {
+            log.warn("修改密码短信验证异常: errorCode={}, message={}",
+                e.getErrorCode().getCode(), e.getMessage());
+
+            // 根据错误码返回不同的HTTP状态码
+            if (e.getErrorCode() == SmsSendException.SmsSendErrorCode.INVALID_PHONE_NUMBER ||
+                e.getErrorCode() == SmsSendException.SmsSendErrorCode.PHONE_NUMBER_REQUIRED) {
+                // 客户端错误，返回400
+                return ResponseEntity.badRequest()
+                        .body(new PasswordResponse(false, e.getMessage(), java.time.LocalDateTime.now()));
+            } else if (e.getErrorCode() == SmsSendException.SmsSendErrorCode.DEVICE_LIMITED ||
+                       e.getErrorCode() == SmsSendException.SmsSendErrorCode.SMS_ALREADY_SENT) {
+                // 请求过于频繁，返回429
+                return ResponseEntity.status(429)
+                        .body(new PasswordResponse(false, e.getMessage(), java.time.LocalDateTime.now()));
+            } else {
+                // 服务器错误，返回500
+                return ResponseEntity.internalServerError()
+                        .body(new PasswordResponse(false, e.getMessage(), java.time.LocalDateTime.now()));
+            }
+        } catch (Exception e) {
+            log.error("修改密码系统异常: error={}", e.getMessage(), e);
+            return ResponseEntity.internalServerError()
+                    .body(new PasswordResponse(false, "系统异常，请稍后重试", java.time.LocalDateTime.now()));
+        }
     }
 }

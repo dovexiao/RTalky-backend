@@ -7,7 +7,7 @@ import lombok.Setter;
 import org.jmolecules.ddd.annotation.AggregateRoot;
 
 import java.time.LocalDateTime;
-import java.util.UUID;
+import java.util.*;
 
 @AggregateRoot
 @Entity
@@ -61,11 +61,20 @@ public class User {
     private LocalDateTime agreementTime;
 
     /**
-     * 认证方式
+     * 认证方式（支持多种凭证）
+     */
+    @ElementCollection(fetch = FetchType.EAGER)
+    @Enumerated(EnumType.STRING)
+    @CollectionTable(name = "user_auth_methods", joinColumns = @JoinColumn(name = "user_id"))
+    @Column(name = "auth_method")
+    private Set<AuthMethod> authMethods = new HashSet<>();
+
+    /**
+     * 兼容性字段：主认证方式（用于向后兼容）
      */
     @Enumerated(EnumType.STRING)
-    @Column(name = "auth_method", nullable = false)
-    private AuthMethod authMethod;
+    @Column(name = "primary_auth_method", nullable = false)
+    private AuthMethod primaryAuthMethod;
 
     /**
      * 账号状态
@@ -122,7 +131,8 @@ public class User {
         user.setPhoneNumber(phoneNumber);
         user.setDeviceFingerprint(deviceFingerprint);
         user.setAgreedToTerms(agreedToTerms);
-        user.setAuthMethod(authMethod);
+        user.setPrimaryAuthMethod(authMethod);
+        user.addAuthMethod(authMethod);
         user.setAgreementTime(agreedToTerms ? LocalDateTime.now() : null);
         user.setRegistrationTime(LocalDateTime.now());
         user.setStatus(UserStatus.ACTIVE);
@@ -138,7 +148,8 @@ public class User {
             throw new IllegalArgumentException("密码长度不能少于6位");
         }
         this.password = newPassword;
-        this.authMethod = AuthMethod.PASSWORD; // 更新认证方式
+        this.addAuthMethod(AuthMethod.PASSWORD); // 添加密码认证方式
+        this.primaryAuthMethod = AuthMethod.PASSWORD; // 更新主认证方式
     }
 
     // 领域行为：验证协议同意状态
@@ -169,5 +180,46 @@ public class User {
     // 领域行为：检查账号是否可用
     public boolean isAccountActive() {
         return !deleted && status == UserStatus.ACTIVE;
+    }
+
+    // 领域行为：添加认证方式
+    public void addAuthMethod(AuthMethod authMethod) {
+        if (authMethod != null) {
+            this.authMethods.add(authMethod);
+        }
+    }
+
+    // 领域行为：移除认证方式
+    public void removeAuthMethod(AuthMethod authMethod) {
+        if (authMethod != null && this.authMethods.size() > 1) {
+            this.authMethods.remove(authMethod);
+            // 如果移除的是主认证方式，选择第一个可用的作为主认证方式
+            if (this.primaryAuthMethod == authMethod) {
+                this.primaryAuthMethod = this.authMethods.iterator().next();
+            }
+        }
+    }
+
+    // 领域行为：检查是否拥有指定认证方式
+    public boolean hasAuthMethod(AuthMethod authMethod) {
+        return this.authMethods.contains(authMethod);
+    }
+
+    // 领域行为：获取所有认证方式
+    public Set<AuthMethod> getAuthMethods() {
+        return new HashSet<>(this.authMethods);
+    }
+
+    // 兼容性方法：获取主认证方式（向后兼容）
+    public AuthMethod getAuthMethod() {
+        return this.primaryAuthMethod;
+    }
+
+    // 兼容性方法：设置主认证方式（向后兼容）
+    public void setAuthMethod(AuthMethod authMethod) {
+        this.primaryAuthMethod = authMethod;
+        if (authMethod != null) {
+            this.addAuthMethod(authMethod);
+        }
     }
 }

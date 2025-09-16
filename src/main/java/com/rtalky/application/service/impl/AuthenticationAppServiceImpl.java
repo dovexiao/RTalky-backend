@@ -5,16 +5,22 @@ import com.rtalky.application.dto.LoginResponse;
 import com.rtalky.application.dto.SmsSendRequest;
 import com.rtalky.application.dto.UserInfoResponse;
 import com.rtalky.application.dto.UpdateUserInfoRequest;
+import com.rtalky.application.dto.PasswordSmsSendRequest;
+import com.rtalky.application.dto.PasswordSetRequest;
+import com.rtalky.application.dto.PasswordChangeRequest;
+import com.rtalky.application.dto.PasswordResponse;
+import com.rtalky.application.util.PasswordValidator;
 import com.rtalky.application.exception.SmsSendException;
 import com.rtalky.application.exception.SmsLoginException;
+import com.rtalky.application.exception.PasswordLoginException;
 import com.rtalky.application.exception.SessionValidationException;
 import com.rtalky.application.service.AuthenticationAppService;
 import com.rtalky.domain.event.UserLoggedInEvent;
 import com.rtalky.domain.event.UserRegisteredEvent;
 import com.rtalky.domain.model.AuthMethod;
+import com.rtalky.domain.model.UserStatus;
 import com.rtalky.domain.model.LoginRecord;
 import com.rtalky.domain.model.User;
-import com.rtalky.domain.model.UserStatus;
 import com.rtalky.domain.repository.LoginRecordRepository;
 import com.rtalky.domain.repository.UserRepository;
 import com.rtalky.domain.service.AuthenticationService;
@@ -88,10 +94,10 @@ public class AuthenticationAppServiceImpl implements AuthenticationAppService {
             // 记录设备操作
             deviceFingerprintService.recordDeviceOperation(deviceFingerprint, request.getPhoneNumber(), "SEND_SMS");
             log.info("短信验证码发送成功: 手机号={}", request.getPhoneNumber());
-            } else {
-                // 发送失败，抛出异常
-                throw new SmsSendException(SmsSendException.SmsSendErrorCode.SMS_SEND_FAILED,
-                    "短信验证码发送失败，请稍后重试");
+        } else {
+            // 发送失败，抛出异常
+            throw new SmsSendException(SmsSendException.SmsSendErrorCode.SMS_SEND_FAILED,
+                "短信验证码发送失败，请稍后重试");
         }
 
         return sendResult;
@@ -217,28 +223,94 @@ public class AuthenticationAppServiceImpl implements AuthenticationAppService {
     @Override
     @Transactional
     public LoginResponse passwordLogin(LoginRequest request) {
-        // 验证协议同意状态
-        if (!request.getAgreedToTerms()) {
-            throw new IllegalArgumentException("必须同意用户协议和隐私政策");
+        try {
+            // 验证认证方式
+            if (request.getAuthMethod() != AuthMethod.PASSWORD) {
+                throw new PasswordLoginException(PasswordLoginException.PasswordLoginErrorCode.AUTH_METHOD_MISMATCH,
+                    "认证方式不匹配，当前请求不是密码登录");
+            }
+
+            // 验证协议同意状态
+            if (!request.getAgreedToTerms()) {
+                throw new PasswordLoginException(PasswordLoginException.PasswordLoginErrorCode.AGREEMENT_NOT_ACCEPTED,
+                    "必须同意用户协议和隐私政策");
+            }
+
+            // 验证手机号
+            if (request.getPhoneNumber() == null || request.getPhoneNumber().trim().isEmpty()) {
+                throw new PasswordLoginException(PasswordLoginException.PasswordLoginErrorCode.PHONE_NUMBER_REQUIRED,
+                    "手机号不能为空");
+            }
+
+            // 验证密码
+            if (request.getPassword() == null || request.getPassword().trim().isEmpty()) {
+                throw new PasswordLoginException(PasswordLoginException.PasswordLoginErrorCode.PASSWORD_REQUIRED,
+                    "密码不能为空");
+            }
+
+            // 生成纯设备指纹用于限流
+            String deviceFingerprint = deviceFingerprintService.generateDeviceFingerprint(standardizeDeviceInfo(request.getDeviceInfo()));
+
+            // 检查设备限制
+            if (deviceFingerprintService.isDeviceLimited(deviceFingerprint, request.getPhoneNumber(), "PASSWORD_LOGIN")) {
+                throw new PasswordLoginException(PasswordLoginException.PasswordLoginErrorCode.DEVICE_LIMITED,
+                    "设备或手机号操作受限，请稍后再试");
+            }
+
+            // 获取用户信息
+            Optional<User> userOptional = userRepository.findByPhoneNumber(request.getPhoneNumber());
+            if (userOptional.isEmpty()) {
+                throw new PasswordLoginException(PasswordLoginException.PasswordLoginErrorCode.USER_NOT_FOUND,
+                    "用户不存在");
+            }
+
+            User user = userOptional.get();
+
+            // 检查用户状态
+            if (!user.isAccountActive()) {
+                if (user.getStatus() == UserStatus.DISABLED) {
+                    throw new PasswordLoginException(PasswordLoginException.PasswordLoginErrorCode.ACCOUNT_DISABLED,
+                        "账号已被禁用，请联系客服");
+                } else if (user.getStatus() == UserStatus.LOCKED) {
+                    throw new PasswordLoginException(PasswordLoginException.PasswordLoginErrorCode.ACCOUNT_LOCKED,
+                        "账号已被锁定，请联系客服");
+                } else {
+                    throw new PasswordLoginException(PasswordLoginException.PasswordLoginErrorCode.ACCOUNT_DISABLED,
+                        "用户账号不可用");
+                }
+            }
+
+            // 检查用户是否已设置密码
+            if (!user.hasPassword()) {
+                throw new PasswordLoginException(PasswordLoginException.PasswordLoginErrorCode.PASSWORD_NOT_SET,
+                    "请先设置密码");
+            }
+
+            // 验证密码
+            boolean isValid = authenticationService.verifyPassword(request.getPhoneNumber(), request.getPassword());
+            if (!isValid) {
+                log.warn("密码验证失败: 手机号={}", request.getPhoneNumber());
+                throw new PasswordLoginException(PasswordLoginException.PasswordLoginErrorCode.PASSWORD_INVALID,
+                    "密码错误");
+            }
+
+            // 记录设备操作
+            deviceFingerprintService.recordDeviceOperation(deviceFingerprint, request.getPhoneNumber(), "PASSWORD_LOGIN");
+
+            // 执行登录逻辑
+            log.info("密码登录成功: phoneNumber={}, userId={}", request.getPhoneNumber(), user.getUserId());
+            return processLogin(request.getPhoneNumber(), AuthMethod.PASSWORD, deviceFingerprint, request.getAgreedToTerms(), request.getDeviceInfo());
+
+        } catch (PasswordLoginException e) {
+            // 重新抛出密码登录异常
+            throw e;
+        } catch (Exception e) {
+            // 其他异常包装为密码登录异常
+            log.error("密码登录过程中发生未知异常: phoneNumber={}, error={}",
+                request.getPhoneNumber(), e.getMessage(), e);
+            throw new PasswordLoginException(PasswordLoginException.PasswordLoginErrorCode.UNKNOWN_ERROR,
+                "密码登录过程中发生异常，请稍后重试", e);
         }
-
-        // 生成纯设备指纹用于限流
-        String deviceFingerprint = deviceFingerprintService.generateDeviceFingerprint(standardizeDeviceInfo(request.getDeviceInfo()));
-
-        // 生成复合指纹用于用户绑定
-        String compositeFingerprint = deviceFingerprintService.generateCompositeFingerprint(
-                standardizeDeviceInfo(request.getDeviceInfo()), request.getPhoneNumber());
-
-        // 验证密码
-        boolean isValid = authenticationService.verifyPassword(request.getPhoneNumber(), request.getPassword());
-
-        if (!isValid) {
-            log.warn("密码验证失败: 手机号={}", request.getPhoneNumber());
-            throw new SecurityException("密码错误");
-        }
-
-        // 执行登录逻辑
-        return processLogin(request.getPhoneNumber(), AuthMethod.PASSWORD, deviceFingerprint, request.getAgreedToTerms(), request.getDeviceInfo());
     }
 
     @Override
@@ -327,7 +399,8 @@ public class AuthenticationAppServiceImpl implements AuthenticationAppService {
                 user.getUserId(),
                 user.getNickname(),
                 user.getBio(),
-                user.getAvatar()
+                user.getAvatar(),
+                user.hasPassword()
             );
 
         } catch (SessionValidationException e) {
@@ -416,7 +489,8 @@ public class AuthenticationAppServiceImpl implements AuthenticationAppService {
                 user.getUserId(),
                 user.getNickname(),
                 user.getBio(),
-                user.getAvatar()
+                user.getAvatar(),
+                user.hasPassword()
             );
 
         } catch (SessionValidationException e) {
@@ -622,5 +696,231 @@ public class AuthenticationAppServiceImpl implements AuthenticationAppService {
     private String getClientIp() {
         // TODO: 从SecurityContext或请求头中获取真实IP
         return "127.0.0.1";
+    }
+
+    @Override
+    public PasswordResponse sendPasswordSmsCode(String sessionToken, PasswordSmsSendRequest request) {
+        try {
+            log.info("请求发送密码设置短信验证码: phoneNumber={}", request.getPhoneNumber());
+
+            // 1. 验证会话并获取用户ID
+            String userId = validateSession(sessionToken);
+
+            // 2. 获取用户信息
+            Optional<User> userOptional = userRepository.findByUserId(userId);
+            if (userOptional.isEmpty()) {
+                log.warn("发送密码设置短信失败: 用户不存在 - userId={}", userId);
+                return new PasswordResponse(false, "用户不存在", LocalDateTime.now());
+            }
+
+            User user = userOptional.get();
+
+            // 3. 验证手机号一致性
+            if (!user.getPhoneNumber().equals(request.getPhoneNumber())) {
+                log.warn("发送密码设置短信失败: 手机号不匹配 - userId={}, sessionPhone={}, requestPhone={}",
+                    userId, user.getPhoneNumber(), request.getPhoneNumber());
+                return new PasswordResponse(false, "手机号不匹配", LocalDateTime.now());
+            }
+
+            // 4. 规范化设备信息
+            String deviceInfo = standardizeDeviceInfo(request.getDeviceInfo());
+
+            // 5. 生成设备指纹
+            String deviceFingerprint = deviceFingerprintService.generateDeviceFingerprint(deviceInfo);
+
+            // 6. 检查设备限制
+            if (deviceFingerprintService.isDeviceLimited(deviceFingerprint, request.getPhoneNumber(), "PASSWORD_SMS_SEND")) {
+                log.warn("密码设置短信发送受限: phoneNumber={}, deviceFingerprint={}", request.getPhoneNumber(), deviceFingerprint);
+                return new PasswordResponse(false, "操作受限，请稍后再试", LocalDateTime.now());
+            }
+
+            // 7. 验证密码强度
+            PasswordValidator.PasswordValidationResult validationResult = PasswordValidator.validate(
+                request.getNewPassword(), user.getPhoneNumber(), user.getUserId());
+
+            if (!validationResult.isValid()) {
+                log.warn("密码设置短信发送失败: 密码强度不符合要求 - userId={}, phoneNumber={}, reason={}",
+                    userId, request.getPhoneNumber(), validationResult.getMessage());
+                return new PasswordResponse(false, validationResult.getMessage(), LocalDateTime.now());
+            }
+
+            // 5. 哈希新密码
+            String hashedPassword = authenticationService.hashPassword(request.getNewPassword());
+
+            // 6. 缓存新密码
+            boolean cacheResult = authenticationService.cachePasswordForSetup(
+                request.getPhoneNumber(), deviceFingerprint, hashedPassword);
+
+            if (!cacheResult) {
+                log.error("密码设置新密码缓存失败: phoneNumber={}, deviceFingerprint={}",
+                    request.getPhoneNumber(), deviceFingerprint);
+                return new PasswordResponse(false, "系统异常，请稍后重试", LocalDateTime.now());
+            }
+
+            // 7. 调用领域服务发送短信
+            boolean result = authenticationService.sendPasswordSmsCode(request.getPhoneNumber(), deviceFingerprint);
+
+            if (result) {
+                // 记录设备操作
+                deviceFingerprintService.recordDeviceOperation(deviceFingerprint, request.getPhoneNumber(), "PASSWORD_SMS_SEND");
+                log.info("密码设置短信验证码发送成功: phoneNumber={}", request.getPhoneNumber());
+                return new PasswordResponse(true, "短信验证码发送成功", LocalDateTime.now());
+            } else {
+                // 发送失败，清除缓存的密码
+                authenticationService.clearCachedPasswordForSetup(request.getPhoneNumber(), deviceFingerprint);
+                log.error("密码设置短信验证码发送失败: phoneNumber={}", request.getPhoneNumber());
+                return new PasswordResponse(false, "短信验证码发送失败，请稍后重试", LocalDateTime.now());
+            }
+
+        } catch (SessionValidationException e) {
+            log.warn("密码设置短信发送会话验证异常: error={}", e.getMessage());
+            return new PasswordResponse(false, e.getMessage(), LocalDateTime.now());
+        } catch (SmsSendException e) {
+            log.warn("密码设置短信发送业务异常: phoneNumber={}, error={}", request.getPhoneNumber(), e.getMessage());
+            return new PasswordResponse(false, e.getMessage(), LocalDateTime.now());
+        } catch (Exception e) {
+            log.error("密码设置短信发送系统异常: phoneNumber={}, error={}", request.getPhoneNumber(), e.getMessage(), e);
+            return new PasswordResponse(false, "系统异常，请稍后重试", LocalDateTime.now());
+        }
+    }
+
+    @Override
+    @Transactional
+    public PasswordResponse setPassword(String sessionToken, PasswordSetRequest request) {
+        try {
+            log.info("请求设置密码: phoneNumber={}", request.getPhoneNumber());
+
+            // 1. 验证会话令牌并获取用户ID
+            String userId = validateSession(sessionToken);
+
+            // 2. 获取用户信息
+            Optional<User> userOptional = userRepository.findByUserId(userId);
+            if (userOptional.isEmpty()) {
+                log.warn("设置密码失败: 用户不存在 - userId={}", userId);
+                return new PasswordResponse(false, "用户不存在", LocalDateTime.now());
+            }
+
+            User user = userOptional.get();
+
+            // 3. 验证手机号一致性
+            if (!user.getPhoneNumber().equals(request.getPhoneNumber())) {
+                log.warn("设置密码失败: 手机号不匹配 - userId={}, sessionPhone={}, requestPhone={}",
+                    userId, user.getPhoneNumber(), request.getPhoneNumber());
+                return new PasswordResponse(false, "手机号不匹配", LocalDateTime.now());
+            }
+
+            // 4. 检查用户状态
+            if (!user.isAccountActive()) {
+                log.warn("设置密码失败: 用户账号不可用 - userId={}, status={}", userId, user.getStatus());
+                return new PasswordResponse(false, "用户账号不可用", LocalDateTime.now());
+            }
+
+            // 5. 生成设备指纹用于验证码校验
+            String deviceFingerprint = deviceFingerprintService.generateDeviceFingerprint(
+                standardizeDeviceInfo("")); // 密码设置时可能没有设备信息
+
+            // 6. 验证短信验证码
+            boolean smsValid = authenticationService.verifyPasswordSmsCode(
+                request.getPhoneNumber(), request.getSmsCode(), deviceFingerprint);
+
+            if (!smsValid) {
+                log.warn("设置密码失败: 短信验证码无效 - userId={}, phoneNumber={}", userId, request.getPhoneNumber());
+                return new PasswordResponse(false, "短信验证码无效或已过期", LocalDateTime.now());
+            }
+
+            // 7. 从缓存获取新密码
+            String cachedPassword = authenticationService.getCachedPasswordForSetup(
+                request.getPhoneNumber(), deviceFingerprint);
+
+            if (cachedPassword == null) {
+                log.warn("设置密码失败: 缓存的密码不存在或已过期 - userId={}, phoneNumber={}", userId, request.getPhoneNumber());
+                return new PasswordResponse(false, "密码设置会话已过期，请重新开始", LocalDateTime.now());
+            }
+
+            // 8. 设置密码
+            boolean setResult = authenticationService.setPassword(request.getPhoneNumber(), cachedPassword);
+
+            if (setResult) {
+                // 设置成功后清除缓存的密码
+                authenticationService.clearCachedPasswordForSetup(request.getPhoneNumber(), deviceFingerprint);
+                log.info("密码设置成功: userId={}, phoneNumber={}", userId, request.getPhoneNumber());
+                return new PasswordResponse(true, "密码设置成功", LocalDateTime.now());
+            } else {
+                log.error("密码设置失败: userId={}, phoneNumber={}", userId, request.getPhoneNumber());
+                return new PasswordResponse(false, "密码设置失败，请稍后重试", LocalDateTime.now());
+            }
+
+        } catch (SessionValidationException e) {
+            log.warn("设置密码会话验证异常: errorCode={}, message={}", 
+                e.getErrorCode().getCode(), e.getMessage());
+            return new PasswordResponse(false, e.getMessage(), LocalDateTime.now());
+        } catch (SmsSendException e) {
+            log.warn("设置密码短信验证异常: phoneNumber={}, errorCode={}, message={}",
+                request.getPhoneNumber(), e.getErrorCode().getCode(), e.getMessage());
+            return new PasswordResponse(false, e.getMessage(), LocalDateTime.now());
+        } catch (Exception e) {
+            log.error("设置密码系统异常: phoneNumber={}, error={}", 
+                request.getPhoneNumber(), e.getMessage(), e);
+            return new PasswordResponse(false, "系统异常，请稍后重试", LocalDateTime.now());
+        }
+    }
+
+    @Override
+    @Transactional
+    public PasswordResponse changePassword(String sessionToken, PasswordChangeRequest request) {
+        try {
+            log.info("请求修改密码");
+
+            // 1. 验证会话令牌并获取用户ID
+            String userId = validateSession(sessionToken);
+
+            // 2. 获取用户信息
+            Optional<User> userOptional = userRepository.findByUserId(userId);
+            if (userOptional.isEmpty()) {
+                log.warn("修改密码失败: 用户不存在 - userId={}", userId);
+                return new PasswordResponse(false, "用户不存在", LocalDateTime.now());
+            }
+
+            User user = userOptional.get();
+
+            // 3. 检查用户是否已设置密码
+            if (!user.hasPassword()) {
+                log.warn("修改密码失败: 用户未设置密码 - userId={}", userId);
+                return new PasswordResponse(false, "请先设置密码", LocalDateTime.now());
+            }
+
+            // 4. 验证密码强度
+            PasswordValidator.PasswordValidationResult validationResult = PasswordValidator.validate(
+                request.getNewPassword(), user.getPhoneNumber(), user.getUserId());
+
+            if (!validationResult.isValid()) {
+                log.warn("修改密码失败: 密码强度不符合要求 - userId={}, reason={}", userId, validationResult.getMessage());
+                return new PasswordResponse(false, validationResult.getMessage(), LocalDateTime.now());
+            }
+
+            // 5. 修改密码（直接传递用户对象，避免重复查询）
+            boolean changeResult = authenticationService.changePassword(
+                user, request.getOldPassword(), request.getNewPassword());
+
+            if (changeResult) {
+                log.info("密码修改成功: userId={}", userId);
+                return new PasswordResponse(true, "密码修改成功", LocalDateTime.now());
+            } else {
+                log.warn("密码修改失败: 旧密码不正确 - userId={}", userId);
+                return new PasswordResponse(false, "旧密码不正确", LocalDateTime.now());
+            }
+
+        } catch (SessionValidationException e) {
+            log.warn("修改密码会话验证异常: errorCode={}, message={}", 
+                e.getErrorCode().getCode(), e.getMessage());
+            return new PasswordResponse(false, e.getMessage(), LocalDateTime.now());
+        } catch (SmsSendException e) {
+            log.warn("修改密码短信验证异常: errorCode={}, message={}",
+                e.getErrorCode().getCode(), e.getMessage());
+            return new PasswordResponse(false, e.getMessage(), LocalDateTime.now());
+        } catch (Exception e) {
+            log.error("修改密码系统异常: error={}", e.getMessage(), e);
+            return new PasswordResponse(false, "系统异常，请稍后重试", LocalDateTime.now());
+        }
     }
 }

@@ -26,5 +26,6 @@ public class UserInfoResponse {
         private String nickname;
         private String bio;
         private String avatar; // base64编码的头像数据
+        private boolean passwordSet; // 是否已设置密码
     }
 }

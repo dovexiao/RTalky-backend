@@ -4,10 +4,13 @@ import com.rtalky.application.dto.LoginResponse;
 import com.rtalky.application.dto.LoginApiResponse;
 import com.rtalky.application.dto.SmsSendResponse;
 import com.rtalky.application.dto.UserInfoResponse;
+import com.rtalky.application.dto.NotePageResponse;
+import com.rtalky.application.dto.NoteResponse;
 import com.rtalky.domain.model.User;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 /**
  * 响应构建器
@@ -115,6 +118,53 @@ public class ResponseBuilder {
             user.getBio(),
             user.getAvatar()
         );
+    }
+
+    /**
+     * 构建笔记分页成功响应
+     */
+    public NotePageResponse buildNotePageSuccessResponse(String message, NotePageResponse data) {
+        // NotePageResponse本身就是分页数据，直接返回
+        return data;
+    }
+
+    /**
+     * 构建笔记分页失败响应
+     */
+    public NotePageResponse buildNotePageFailureResponse(String message) {
+        NotePageResponse response = new NotePageResponse();
+        response.setContent(List.of());
+        response.setPage(0);
+        response.setSize(0);
+        response.setTotalElements(0);
+        response.setTotalPages(0);
+        response.setFirst(true);
+        response.setLast(true);
+        response.setHasNext(false);
+        response.setHasPrevious(false);
+        return response;
+    }
+
+    /**
+     * 构建笔记成功响应
+     */
+    public NoteResponse buildNoteSuccessResponse(String message, NoteResponse data) {
+        // NoteResponse本身就是笔记数据，直接返回
+        return data;
+    }
+
+    /**
+     * 构建笔记失败响应
+     */
+    public NoteResponse buildNoteFailureResponse(String message) {
+        NoteResponse response = new NoteResponse();
+        response.setNoteId("");
+        response.setDisplayId("");
+        response.setTitle("");
+        response.setDescription("");
+        response.setContent("");
+        response.setTags(List.of());
+        return response;
     }
 
     /**

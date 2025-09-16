@@ -124,9 +124,9 @@ public class AuthController {
                         .body(responseBuilder.buildSmsSendFailureResponse("短信验证码发送失败，请稍后重试"));
             }
         } catch (SmsSendException e) {
-            log.warn("短信发送业务异常: phoneNumber={}, errorCode={}, message={}", 
+            log.warn("短信发送业务异常: phoneNumber={}, errorCode={}, message={}",
                 request.getPhoneNumber(), e.getErrorCode().getCode(), e.getMessage());
-            
+
             // 根据错误码返回不同的HTTP状态码
             if (e.getErrorCode() == SmsSendException.SmsSendErrorCode.AGREEMENT_NOT_ACCEPTED ||
                 e.getErrorCode() == SmsSendException.SmsSendErrorCode.PHONE_NUMBER_REQUIRED ||
@@ -154,69 +154,69 @@ public class AuthController {
     /**
      * 一键登录
      */
-    @PostMapping("/one-click")
-    @Operation(
-        summary = "一键登录",
-        description = "使用一键登录令牌进行用户认证，支持自动注册新用户"
-    )
-    @ApiResponses(value = {
-        @ApiResponse(
-            responseCode = "200",
-            description = "登录成功",
-            content = @Content(
-                mediaType = "application/json",
-                schema = @Schema(implementation = LoginResponse.class),
-                examples = @ExampleObject(
-                    name = "登录成功",
-                    value = "{\"userId\":\"U123456789\",\"phoneNumber\":\"13800138000\",\"sessionToken\":\"token123\",\"loginTime\":\"2024-01-01T12:00:00\",\"tokenExpiryTime\":\"2024-01-02T12:00:00\",\"userProfile\":{\"nickname\":\"用户昵称\",\"avatar\":\"data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD...\",\"bio\":\"个人简介\"}}"
-                )
-            )
-        ),
-        @ApiResponse(
-            responseCode = "400",
-            description = "请求参数错误",
-            content = @Content(
-                mediaType = "application/json",
-                schema = @Schema(implementation = ResponseBuilder.SimpleResponse.class),
-                examples = @ExampleObject(
-                    name = "认证方式不匹配",
-                    value = "{\"success\":false,\"message\":\"认证方式不匹配\",\"timestamp\":\"2024-01-01T12:00:00\"}"
-                )
-            )
-        )
-    })
-    public ResponseEntity<?> oneClickLogin(
-        @Parameter(
-            description = "一键登录请求参数",
-            required = true,
-            schema = @Schema(implementation = LoginRequest.class)
-        )
-        @Valid @RequestBody LoginRequest request
-    ) {
-        log.info("一键登录请求: phoneNumber={}", request.getPhoneNumber());
-
-        // 验证认证方式
-        if (request.getAuthMethod() != AuthMethod.ONE_CLICK) {
-            return ResponseEntity.badRequest()
-                    .body(responseBuilder.buildSimpleResponse(false, "认证方式不匹配"));
-        }
-
-        // 验证协议同意状态
-        if (!request.getAgreedToTerms()) {
-            return ResponseEntity.badRequest()
-                    .body(responseBuilder.buildSimpleResponse(false, "必须同意用户协议和隐私政策"));
-        }
-
-        try {
-            LoginResponse response = authenticationAppService.oneClickLogin(request);
-            log.info("一键登录成功: userId={}", response.getUserId());
-            return ResponseEntity.ok(response);
-        } catch (Exception e) {
-            log.error("一键登录失败: phoneNumber={}, error={}",
-                    request.getPhoneNumber(), e.getMessage(), e);
-            return handleLoginException(e);
-        }
-    }
+//    @PostMapping("/one-click")
+//    @Operation(
+//        summary = "一键登录",
+//        description = "使用一键登录令牌进行用户认证，支持自动注册新用户"
+//    )
+//    @ApiResponses(value = {
+//        @ApiResponse(
+//            responseCode = "200",
+//            description = "登录成功",
+//            content = @Content(
+//                mediaType = "application/json",
+//                schema = @Schema(implementation = LoginResponse.class),
+//                examples = @ExampleObject(
+//                    name = "登录成功",
+//                    value = "{\"userId\":\"U123456789\",\"phoneNumber\":\"13800138000\",\"sessionToken\":\"token123\",\"loginTime\":\"2024-01-01T12:00:00\",\"tokenExpiryTime\":\"2024-01-02T12:00:00\",\"userProfile\":{\"nickname\":\"用户昵称\",\"avatar\":\"data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD...\",\"bio\":\"个人简介\"}}"
+//                )
+//            )
+//        ),
+//        @ApiResponse(
+//            responseCode = "400",
+//            description = "请求参数错误",
+//            content = @Content(
+//                mediaType = "application/json",
+//                schema = @Schema(implementation = ResponseBuilder.SimpleResponse.class),
+//                examples = @ExampleObject(
+//                    name = "认证方式不匹配",
+//                    value = "{\"success\":false,\"message\":\"认证方式不匹配\",\"timestamp\":\"2024-01-01T12:00:00\"}"
+//                )
+//            )
+//        )
+//    })
+//    public ResponseEntity<?> oneClickLogin(
+//        @Parameter(
+//            description = "一键登录请求参数",
+//            required = true,
+//            schema = @Schema(implementation = LoginRequest.class)
+//        )
+//        @Valid @RequestBody LoginRequest request
+//    ) {
+//        log.info("一键登录请求: phoneNumber={}", request.getPhoneNumber());
+//
+//        // 验证认证方式
+//        if (request.getAuthMethod() != AuthMethod.ONE_CLICK) {
+//            return ResponseEntity.badRequest()
+//                    .body(responseBuilder.buildSimpleResponse(false, "认证方式不匹配"));
+//        }
+//
+//        // 验证协议同意状态
+//        if (!request.getAgreedToTerms()) {
+//            return ResponseEntity.badRequest()
+//                    .body(responseBuilder.buildSimpleResponse(false, "必须同意用户协议和隐私政策"));
+//        }
+//
+//        try {
+//            LoginResponse response = authenticationAppService.oneClickLogin(request);
+//            log.info("一键登录成功: userId={}", response.getUserId());
+//            return ResponseEntity.ok(response);
+//        } catch (Exception e) {
+//            log.error("一键登录失败: phoneNumber={}, error={}",
+//                    request.getPhoneNumber(), e.getMessage(), e);
+//            return handleLoginException(e);
+//        }
+//    }
 
     /**
      * 短信验证码登录
@@ -364,192 +364,192 @@ public class AuthController {
     /**
      * 密码登录
      */
-    @PostMapping("/password-login")
-    @Operation(
-        summary = "密码登录",
-        description = "使用手机号和密码进行用户认证，支持自动注册新用户"
-    )
-    @ApiResponses(value = {
-        @ApiResponse(
-            responseCode = "200",
-            description = "登录成功",
-            content = @Content(
-                mediaType = "application/json",
-                schema = @Schema(implementation = LoginResponse.class)
-            )
-        ),
-        @ApiResponse(
-            responseCode = "400",
-            description = "请求参数错误",
-            content = @Content(
-                mediaType = "application/json",
-                schema = @Schema(implementation = ResponseBuilder.SimpleResponse.class)
-            )
-        )
-    })
-    public ResponseEntity<?> passwordLogin(
-        @Parameter(
-            description = "密码登录请求参数",
-            required = true,
-            schema = @Schema(implementation = LoginRequest.class)
-        )
-        @Valid @RequestBody LoginRequest request
-    ) {
-        log.info("密码登录请求: phoneNumber={}", request.getPhoneNumber());
-
-        // 验证认证方式
-        if (request.getAuthMethod() != AuthMethod.PASSWORD) {
-            return ResponseEntity.badRequest()
-                    .body(responseBuilder.buildSimpleResponse(false, "认证方式不匹配"));
-        }
-
-        // 验证协议同意状态
-        if (!request.getAgreedToTerms()) {
-            return ResponseEntity.badRequest()
-                    .body(responseBuilder.buildSimpleResponse(false, "必须同意用户协议和隐私政策"));
-        }
-
-        try {
-            LoginResponse response = authenticationAppService.passwordLogin(request);
-            log.info("密码登录成功: userId={}", response.getUserId());
-            return ResponseEntity.ok(response);
-        } catch (Exception e) {
-            log.error("密码登录失败: phoneNumber={}, error={}",
-                    request.getPhoneNumber(), e.getMessage(), e);
-            return handleLoginException(e);
-        }
-    }
+//    @PostMapping("/password-login")
+//    @Operation(
+//        summary = "密码登录",
+//        description = "使用手机号和密码进行用户认证，支持自动注册新用户"
+//    )
+//    @ApiResponses(value = {
+//        @ApiResponse(
+//            responseCode = "200",
+//            description = "登录成功",
+//            content = @Content(
+//                mediaType = "application/json",
+//                schema = @Schema(implementation = LoginResponse.class)
+//            )
+//        ),
+//        @ApiResponse(
+//            responseCode = "400",
+//            description = "请求参数错误",
+//            content = @Content(
+//                mediaType = "application/json",
+//                schema = @Schema(implementation = ResponseBuilder.SimpleResponse.class)
+//            )
+//        )
+//    })
+//    public ResponseEntity<?> passwordLogin(
+//        @Parameter(
+//            description = "密码登录请求参数",
+//            required = true,
+//            schema = @Schema(implementation = LoginRequest.class)
+//        )
+//        @Valid @RequestBody LoginRequest request
+//    ) {
+//        log.info("密码登录请求: phoneNumber={}", request.getPhoneNumber());
+//
+//        // 验证认证方式
+//        if (request.getAuthMethod() != AuthMethod.PASSWORD) {
+//            return ResponseEntity.badRequest()
+//                    .body(responseBuilder.buildSimpleResponse(false, "认证方式不匹配"));
+//        }
+//
+//        // 验证协议同意状态
+//        if (!request.getAgreedToTerms()) {
+//            return ResponseEntity.badRequest()
+//                    .body(responseBuilder.buildSimpleResponse(false, "必须同意用户协议和隐私政策"));
+//        }
+//
+//        try {
+//            LoginResponse response = authenticationAppService.passwordLogin(request);
+//            log.info("密码登录成功: userId={}", response.getUserId());
+//            return ResponseEntity.ok(response);
+//        } catch (Exception e) {
+//            log.error("密码登录失败: phoneNumber={}, error={}",
+//                    request.getPhoneNumber(), e.getMessage(), e);
+//            return handleLoginException(e);
+//        }
+//    }
 
     /**
      * 统一登录接口（根据authMethod自动路由）
      */
-    @PostMapping("/login")
-    @Operation(
-        summary = "统一登录接口",
-        description = "根据认证方式自动路由到对应的登录逻辑，支持一键登录、短信登录、密码登录"
-    )
-    @ApiResponses(value = {
-        @ApiResponse(
-            responseCode = "200",
-            description = "登录成功",
-            content = @Content(
-                mediaType = "application/json",
-                schema = @Schema(implementation = LoginResponse.class)
-            )
-        ),
-        @ApiResponse(
-            responseCode = "400",
-            description = "请求参数错误",
-            content = @Content(
-                mediaType = "application/json",
-                schema = @Schema(implementation = ResponseBuilder.SimpleResponse.class)
-            )
-        )
-    })
-    public ResponseEntity<?> login(
-        @Parameter(
-            description = "统一登录请求参数",
-            required = true,
-            schema = @Schema(implementation = LoginRequest.class)
-        )
-        @Valid @RequestBody LoginRequest request
-    ) {
-        log.info("登录请求: phoneNumber={}, authMethod={}, device={}",
-                request.getPhoneNumber(),
-                request.getAuthMethod(),
-                deviceInfoConverter.convertToLogString(request.getDeviceInfo()));
-
-        // 验证参数完整性
-        if (!authParameterConverter.validateLoginParameters(request)) {
-            String paramName = authParameterConverter.getAuthMethodParameterName(request.getAuthMethod());
-            return ResponseEntity.badRequest()
-                    .body(responseBuilder.buildSimpleResponse(false, "缺少必要参数: " + paramName));
-        }
-
-        try {
-            LoginResponse response = authenticationAppService.login(request);
-            log.info("登录成功: userId={}", response.getUserId());
-            return ResponseEntity.ok(response);
-        } catch (Exception e) {
-            log.error("登录失败: phoneNumber={}, error={}",
-                    request.getPhoneNumber(), e.getMessage(), e);
-            LoginResponse errorResponse = responseBuilder.buildErrorResponse(e.getMessage());
-            return ResponseEntity.badRequest().body(errorResponse);
-        }
-    }
+//    @PostMapping("/login")
+//    @Operation(
+//        summary = "统一登录接口",
+//        description = "根据认证方式自动路由到对应的登录逻辑，支持一键登录、短信登录、密码登录"
+//    )
+//    @ApiResponses(value = {
+//        @ApiResponse(
+//            responseCode = "200",
+//            description = "登录成功",
+//            content = @Content(
+//                mediaType = "application/json",
+//                schema = @Schema(implementation = LoginResponse.class)
+//            )
+//        ),
+//        @ApiResponse(
+//            responseCode = "400",
+//            description = "请求参数错误",
+//            content = @Content(
+//                mediaType = "application/json",
+//                schema = @Schema(implementation = ResponseBuilder.SimpleResponse.class)
+//            )
+//        )
+//    })
+//    public ResponseEntity<?> login(
+//        @Parameter(
+//            description = "统一登录请求参数",
+//            required = true,
+//            schema = @Schema(implementation = LoginRequest.class)
+//        )
+//        @Valid @RequestBody LoginRequest request
+//    ) {
+//        log.info("登录请求: phoneNumber={}, authMethod={}, device={}",
+//                request.getPhoneNumber(),
+//                request.getAuthMethod(),
+//                deviceInfoConverter.convertToLogString(request.getDeviceInfo()));
+//
+//        // 验证参数完整性
+//        if (!authParameterConverter.validateLoginParameters(request)) {
+//            String paramName = authParameterConverter.getAuthMethodParameterName(request.getAuthMethod());
+//            return ResponseEntity.badRequest()
+//                    .body(responseBuilder.buildSimpleResponse(false, "缺少必要参数: " + paramName));
+//        }
+//
+//        try {
+//            LoginResponse response = authenticationAppService.login(request);
+//            log.info("登录成功: userId={}", response.getUserId());
+//            return ResponseEntity.ok(response);
+//        } catch (Exception e) {
+//            log.error("登录失败: phoneNumber={}, error={}",
+//                    request.getPhoneNumber(), e.getMessage(), e);
+//            LoginResponse errorResponse = responseBuilder.buildErrorResponse(e.getMessage());
+//            return ResponseEntity.badRequest().body(errorResponse);
+//        }
+//    }
 
     /**
      * 退出登录
      */
-    @PostMapping("/logout")
-    @Operation(
-        summary = "退出登录",
-        description = "使用会话令牌退出当前用户登录状态"
-    )
-    @ApiResponses(value = {
-        @ApiResponse(
-            responseCode = "200",
-            description = "退出成功",
-            content = @Content(
-                mediaType = "application/json",
-                schema = @Schema(implementation = ResponseBuilder.SimpleResponse.class),
-                examples = @ExampleObject(
-                    name = "退出成功",
-                    value = "{\"success\":true,\"message\":\"退出登录成功\",\"timestamp\":\"2024-01-01T12:00:00\"}"
-                )
-            )
-        ),
-        @ApiResponse(
-            responseCode = "400",
-            description = "请求参数错误",
-            content = @Content(
-                mediaType = "application/json",
-                schema = @Schema(implementation = ResponseBuilder.SimpleResponse.class),
-                examples = @ExampleObject(
-                    name = "无效授权头",
-                    value = "{\"success\":false,\"message\":\"无效的授权头\",\"timestamp\":\"2024-01-01T12:00:00\"}"
-                )
-            )
-        ),
-        @ApiResponse(
-            responseCode = "500",
-            description = "退出失败",
-            content = @Content(
-                mediaType = "application/json",
-                schema = @Schema(implementation = ResponseBuilder.SimpleResponse.class),
-                examples = @ExampleObject(
-                    name = "退出失败",
-                    value = "{\"success\":false,\"message\":\"退出登录失败\",\"timestamp\":\"2024-01-01T12:00:00\"}"
-                )
-            )
-        )
-    })
-    public ResponseEntity<?> logout(
-        @Parameter(
-            description = "Bearer Token，格式：Bearer {token}",
-            required = true,
-            example = "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-        )
-        @RequestHeader("Authorization") String authorization
-    ) {
-        String sessionToken = extractTokenFromHeader(authorization);
-
-        if (sessionToken == null) {
-            return ResponseEntity.badRequest()
-                    .body(responseBuilder.buildSimpleResponse(false, "无效的授权头"));
-        }
-
-        boolean result = authenticationAppService.logout(sessionToken);
-
-        if (result) {
-            log.info("退出登录成功: sessionToken={}", sessionToken);
-            return ResponseEntity.ok(responseBuilder.buildSimpleResponse(true, "退出登录成功"));
-        } else {
-            log.warn("退出登录失败: sessionToken={}", sessionToken);
-            return ResponseEntity.internalServerError()
-                    .body(responseBuilder.buildSimpleResponse(false, "退出登录失败"));
-        }
-    }
+//    @PostMapping("/logout")
+//    @Operation(
+//        summary = "退出登录",
+//        description = "使用会话令牌退出当前用户登录状态"
+//    )
+//    @ApiResponses(value = {
+//        @ApiResponse(
+//            responseCode = "200",
+//            description = "退出成功",
+//            content = @Content(
+//                mediaType = "application/json",
+//                schema = @Schema(implementation = ResponseBuilder.SimpleResponse.class),
+//                examples = @ExampleObject(
+//                    name = "退出成功",
+//                    value = "{\"success\":true,\"message\":\"退出登录成功\",\"timestamp\":\"2024-01-01T12:00:00\"}"
+//                )
+//            )
+//        ),
+//        @ApiResponse(
+//            responseCode = "400",
+//            description = "请求参数错误",
+//            content = @Content(
+//                mediaType = "application/json",
+//                schema = @Schema(implementation = ResponseBuilder.SimpleResponse.class),
+//                examples = @ExampleObject(
+//                    name = "无效授权头",
+//                    value = "{\"success\":false,\"message\":\"无效的授权头\",\"timestamp\":\"2024-01-01T12:00:00\"}"
+//                )
+//            )
+//        ),
+//        @ApiResponse(
+//            responseCode = "500",
+//            description = "退出失败",
+//            content = @Content(
+//                mediaType = "application/json",
+//                schema = @Schema(implementation = ResponseBuilder.SimpleResponse.class),
+//                examples = @ExampleObject(
+//                    name = "退出失败",
+//                    value = "{\"success\":false,\"message\":\"退出登录失败\",\"timestamp\":\"2024-01-01T12:00:00\"}"
+//                )
+//            )
+//        )
+//    })
+//    public ResponseEntity<?> logout(
+//        @Parameter(
+//            description = "Bearer Token，格式：Bearer {token}",
+//            required = true,
+//            example = "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+//        )
+//        @RequestHeader("Authorization") String authorization
+//    ) {
+//        String sessionToken = extractTokenFromHeader(authorization);
+//
+//        if (sessionToken == null) {
+//            return ResponseEntity.badRequest()
+//                    .body(responseBuilder.buildSimpleResponse(false, "无效的授权头"));
+//        }
+//
+//        boolean result = authenticationAppService.logout(sessionToken);
+//
+//        if (result) {
+//            log.info("退出登录成功: sessionToken={}", sessionToken);
+//            return ResponseEntity.ok(responseBuilder.buildSimpleResponse(true, "退出登录成功"));
+//        } else {
+//            log.warn("退出登录失败: sessionToken={}", sessionToken);
+//            return ResponseEntity.internalServerError()
+//                    .body(responseBuilder.buildSimpleResponse(false, "退出登录失败"));
+//        }
+//    }
 
     /**
      * 验证会话

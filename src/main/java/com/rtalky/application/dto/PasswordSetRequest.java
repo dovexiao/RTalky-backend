@@ -14,4 +14,7 @@ public class PasswordSetRequest {
 
     @NotBlank(message = "短信验证码不能为空")
     private String smsCode;
+
+    @NotBlank(message = "设备信息不能为空")
+    private String deviceInfo;
 }

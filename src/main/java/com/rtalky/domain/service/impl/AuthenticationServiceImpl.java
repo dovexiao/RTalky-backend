@@ -505,4 +505,63 @@ public class AuthenticationServiceImpl implements AuthenticationService {
     public String hashPassword(String password) {
         return passwordEncoder.encode(password);
     }
+
+    @Override
+    public boolean sendDeletionSmsCode(String phoneNumber, String deviceFingerprint) {
+        try {
+            // 生成验证码
+            String smsCode = generateRandomCode();
+            
+            // 缓存验证码
+            String cacheKey = "sms:code:deletion:" + phoneNumber + ":" + deviceFingerprint;
+            cacheService.set(cacheKey, smsCode, smsCodeExpireMinutes, TimeUnit.MINUTES);
+            
+            // 发送短信
+            boolean result = smsClient.sendVerificationCode(phoneNumber, smsCode);
+            
+            if (result) {
+                // 发布事件
+                eventPublisher.publishEvent(new SmsCodeSentEvent(phoneNumber, LocalDateTime.now(), deviceFingerprint));
+                log.info("账号注销短信验证码发送成功: phoneNumber={}, deviceFingerprint={}", phoneNumber, deviceFingerprint);
+            } else {
+                log.error("账号注销短信验证码发送失败: phoneNumber={}, deviceFingerprint={}", phoneNumber, deviceFingerprint);
+            }
+            
+            return result;
+            
+        } catch (Exception e) {
+            log.error("账号注销短信验证码发送异常: phoneNumber={}, deviceFingerprint={}, error={}", 
+                phoneNumber, deviceFingerprint, e.getMessage(), e);
+            return false;
+        }
+    }
+
+    @Override
+    public boolean verifyDeletionSmsCode(String phoneNumber, String smsCode, String deviceFingerprint) {
+        try {
+            String cacheKey = "sms:code:deletion:" + phoneNumber + ":" + deviceFingerprint;
+            String cachedCode = cacheService.get(cacheKey, String.class);
+            
+            if (cachedCode == null) {
+                log.warn("账号注销短信验证码不存在或已过期: phoneNumber={}, deviceFingerprint={}", phoneNumber, deviceFingerprint);
+                return false;
+            }
+            
+            if (!cachedCode.equals(smsCode)) {
+                log.warn("账号注销短信验证码错误: phoneNumber={}, deviceFingerprint={}, expected={}, actual={}", 
+                    phoneNumber, deviceFingerprint, cachedCode, smsCode);
+                return false;
+            }
+            
+            // 验证成功后清除验证码
+            cacheService.delete(cacheKey);
+            log.info("账号注销短信验证码验证成功: phoneNumber={}, deviceFingerprint={}", phoneNumber, deviceFingerprint);
+            return true;
+            
+        } catch (Exception e) {
+            log.error("账号注销短信验证码验证异常: phoneNumber={}, deviceFingerprint={}, error={}", 
+                phoneNumber, deviceFingerprint, e.getMessage(), e);
+            return false;
+        }
+    }
 }

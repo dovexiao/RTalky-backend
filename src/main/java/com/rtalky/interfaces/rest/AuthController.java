@@ -11,6 +11,9 @@ import com.rtalky.application.dto.PasswordSmsSendRequest;
 import com.rtalky.application.dto.PasswordSetRequest;
 import com.rtalky.application.dto.PasswordChangeRequest;
 import com.rtalky.application.dto.PasswordResponse;
+import com.rtalky.application.dto.AccountDeletionSmsRequest;
+import com.rtalky.application.dto.AccountDeletionRequest;
+import com.rtalky.application.dto.AccountDeletionResponse;
 import com.rtalky.application.exception.SmsSendException;
 import com.rtalky.domain.model.AuthMethod;
 import com.rtalky.application.exception.SmsLoginException;
@@ -509,7 +512,7 @@ public class AuthController {
                         .body(responseBuilder.buildLoginFailureResponse(e.getMessage()));
             }
         } catch (Exception e) {
-            log.error("密码登录系统异常: phoneNumber={}, error={}", 
+            log.error("密码登录系统异常: phoneNumber={}, error={}",
                 request.getPhoneNumber(), e.getMessage(), e);
             return ResponseEntity.internalServerError()
                     .body(responseBuilder.buildLoginFailureResponse("系统异常，请稍后重试"));
@@ -1192,27 +1195,23 @@ public class AuthController {
             String sessionToken = extractTokenFromHeader(authorization);
             if (sessionToken == null) {
                 log.warn("Authorization头格式无效: {}", authorization);
-                return ResponseEntity.badRequest()
+        return ResponseEntity.badRequest()
                         .body(responseBuilder.buildSmsSendFailureResponse("Authorization头格式无效"));
             }
 
-            // 验证会话
-            String userId = authenticationAppService.validateSession(sessionToken);
-            log.debug("会话验证成功: sessionToken={}, userId={}", sessionToken, userId);
-
             PasswordResponse response = authenticationAppService.sendPasswordSmsCode(sessionToken, request);
-            
+
             if (response.isSuccess()) {
                 log.info("密码设置短信验证码发送成功: phoneNumber={}, codeDigits={}", request.getPhoneNumber(), smsCodeDigits);
                 return ResponseEntity.ok(responseBuilder.buildSmsSendSuccessResponse("短信验证码发送成功", smsCodeDigits));
             } else {
-                log.warn("密码设置短信验证码发送失败: phoneNumber={}, message={}", 
+                log.warn("密码设置短信验证码发送失败: phoneNumber={}, message={}",
                     request.getPhoneNumber(), response.getMessage());
                 return ResponseEntity.internalServerError()
                         .body(responseBuilder.buildSmsSendFailureResponse(response.getMessage()));
             }
         } catch (SessionValidationException e) {
-            log.warn("密码设置短信发送会话验证异常: errorCode={}, message={}", 
+            log.warn("密码设置短信发送会话验证异常: errorCode={}, message={}",
                 e.getErrorCode().getCode(), e.getMessage());
 
             // 根据错误码返回不同的HTTP状态码
@@ -1256,7 +1255,7 @@ public class AuthController {
                         .body(responseBuilder.buildSmsSendFailureResponse(e.getMessage()));
             }
         } catch (Exception e) {
-            log.error("发送密码设置短信验证码系统异常: phoneNumber={}, error={}", 
+            log.error("发送密码设置短信验证码系统异常: phoneNumber={}, error={}",
                 request.getPhoneNumber(), e.getMessage(), e);
             return ResponseEntity.internalServerError()
                     .body(responseBuilder.buildSmsSendFailureResponse("系统异常，请稍后重试"));
@@ -1389,14 +1388,14 @@ public class AuthController {
             }
 
             PasswordResponse response = authenticationAppService.setPassword(sessionToken, request);
-            
+
             if (response.isSuccess()) {
                 log.info("密码设置成功: phoneNumber={}", request.getPhoneNumber());
                 return ResponseEntity.ok(response);
             } else {
-                log.warn("密码设置失败: phoneNumber={}, message={}", 
+                log.warn("密码设置失败: phoneNumber={}, message={}",
                     request.getPhoneNumber(), response.getMessage());
-                
+
                 // 根据错误类型返回不同的HTTP状态码
                 if (response.getMessage().contains("会话") || response.getMessage().contains("登录")) {
                     return ResponseEntity.status(401).body(response);
@@ -1409,7 +1408,7 @@ public class AuthController {
                 }
             }
         } catch (SessionValidationException e) {
-            log.warn("设置密码会话验证异常: errorCode={}, message={}", 
+            log.warn("设置密码会话验证异常: errorCode={}, message={}",
                 e.getErrorCode().getCode(), e.getMessage());
 
             // 根据错误码返回不同的HTTP状态码
@@ -1453,7 +1452,7 @@ public class AuthController {
                         .body(new PasswordResponse(false, e.getMessage(), java.time.LocalDateTime.now()));
             }
         } catch (Exception e) {
-            log.error("设置密码系统异常: phoneNumber={}, error={}", 
+            log.error("设置密码系统异常: phoneNumber={}, error={}",
                 request.getPhoneNumber(), e.getMessage(), e);
             return ResponseEntity.internalServerError()
                     .body(new PasswordResponse(false, "系统异常，请稍后重试", java.time.LocalDateTime.now()));
@@ -1586,13 +1585,13 @@ public class AuthController {
             }
 
             PasswordResponse response = authenticationAppService.changePassword(sessionToken, request);
-            
+
             if (response.isSuccess()) {
                 log.info("密码修改成功");
                 return ResponseEntity.ok(response);
             } else {
                 log.warn("密码修改失败: message={}", response.getMessage());
-                
+
                 // 根据错误类型返回不同的HTTP状态码
                 if (response.getMessage().contains("会话") || response.getMessage().contains("登录")) {
                     return ResponseEntity.status(401).body(response);
@@ -1605,7 +1604,7 @@ public class AuthController {
                 }
             }
         } catch (SessionValidationException e) {
-            log.warn("修改密码会话验证异常: errorCode={}, message={}", 
+            log.warn("修改密码会话验证异常: errorCode={}, message={}",
                 e.getErrorCode().getCode(), e.getMessage());
 
             // 根据错误码返回不同的HTTP状态码
@@ -1652,6 +1651,227 @@ public class AuthController {
             log.error("修改密码系统异常: error={}", e.getMessage(), e);
             return ResponseEntity.internalServerError()
                     .body(new PasswordResponse(false, "系统异常，请稍后重试", java.time.LocalDateTime.now()));
+        }
+    }
+
+    /**
+     * 发送账号注销短信验证码
+     */
+    @PostMapping("/account/deletion/sms-code")
+    @Operation(
+        summary = "发送账号注销短信验证码",
+        description = "向用户手机号发送短信验证码，用于账号注销验证。需要用户已登录且已同意注销说明。"
+    )
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "200", description = "验证码发送成功",
+            content = @Content(schema = @Schema(implementation = SmsSendResponse.class),
+                examples = @ExampleObject(value = "{\"success\":true,\"message\":\"验证码发送成功\",\"codeDigits\":6,\"timestamp\":\"2024-01-01T12:00:00\"}"))),
+        @ApiResponse(responseCode = "400", description = "请求参数错误",
+            content = @Content(schema = @Schema(implementation = SmsSendResponse.class),
+                examples = @ExampleObject(value = "{\"success\":false,\"message\":\"必须同意注销说明\",\"codeDigits\":null,\"timestamp\":\"2024-01-01T12:00:00\"}"))),
+        @ApiResponse(responseCode = "401", description = "未授权",
+            content = @Content(schema = @Schema(implementation = SmsSendResponse.class),
+                examples = @ExampleObject(value = "{\"success\":false,\"message\":\"会话已过期，请重新登录\",\"codeDigits\":null,\"timestamp\":\"2024-01-01T12:00:00\"}"))),
+        @ApiResponse(responseCode = "429", description = "请求过于频繁",
+            content = @Content(schema = @Schema(implementation = SmsSendResponse.class),
+                examples = @ExampleObject(value = "{\"success\":false,\"message\":\"操作受限，请稍后再试\",\"codeDigits\":null,\"timestamp\":\"2024-01-01T12:00:00\"}"))),
+        @ApiResponse(responseCode = "500", description = "系统异常",
+            content = @Content(schema = @Schema(implementation = SmsSendResponse.class),
+                examples = @ExampleObject(value = "{\"success\":false,\"message\":\"系统异常，请稍后重试\",\"codeDigits\":null,\"timestamp\":\"2024-01-01T12:00:00\"}")))
+    })
+    public ResponseEntity<SmsSendResponse> sendDeletionSmsCode(
+        @RequestHeader(value = "Authorization", required = false) String authorization,
+        @Valid @RequestBody AccountDeletionSmsRequest request
+    ) {
+        try {
+            log.info("请求发送账号注销短信验证码");
+
+            // 检查Authorization头是否存在
+            if (authorization == null || authorization.trim().isEmpty()) {
+                log.warn("缺少Authorization头");
+                return ResponseEntity.badRequest()
+                        .body(new SmsSendResponse(false, "缺少Authorization头", java.time.LocalDateTime.now(), null));
+            }
+
+            String sessionToken = extractTokenFromHeader(authorization);
+            if (sessionToken == null) {
+                log.warn("Authorization头格式无效: {}", authorization);
+                return ResponseEntity.badRequest()
+                        .body(new SmsSendResponse(false, "Authorization头格式无效", java.time.LocalDateTime.now(), null));
+            }
+
+            // 调用应用服务
+            SmsSendResponse response = authenticationAppService.sendDeletionSmsCode(sessionToken, request);
+
+            if (response.isSuccess()) {
+                return ResponseEntity.ok(response);
+            } else {
+                // 根据错误消息返回不同的HTTP状态码
+                if (response.getMessage().contains("必须同意") || response.getMessage().contains("用户不存在")) {
+                    return ResponseEntity.badRequest().body(response);
+                } else if (response.getMessage().contains("会话") || response.getMessage().contains("登录")) {
+                    return ResponseEntity.status(401).body(response);
+                } else if (response.getMessage().contains("操作受限")) {
+                    return ResponseEntity.status(429).body(response);
+                } else {
+                    return ResponseEntity.internalServerError().body(response);
+                }
+            }
+
+        } catch (SessionValidationException e) {
+            log.warn("发送账号注销短信验证码会话验证异常: errorCode={}, message={}",
+                e.getErrorCode().getCode(), e.getMessage());
+
+            // 根据错误码返回不同的HTTP状态码
+            if (e.getErrorCode() == SessionValidationException.SessionValidationErrorCode.TOKEN_REQUIRED ||
+                e.getErrorCode() == SessionValidationException.SessionValidationErrorCode.INVALID_TOKEN_FORMAT) {
+                // 客户端错误，返回400
+                return ResponseEntity.badRequest()
+                        .body(new SmsSendResponse(false, e.getMessage(), java.time.LocalDateTime.now(), null));
+            } else if (e.getErrorCode() == SessionValidationException.SessionValidationErrorCode.TOKEN_NOT_FOUND ||
+                       e.getErrorCode() == SessionValidationException.SessionValidationErrorCode.TOKEN_EXPIRED ||
+                       e.getErrorCode() == SessionValidationException.SessionValidationErrorCode.TOKEN_INVALID ||
+                       e.getErrorCode() == SessionValidationException.SessionValidationErrorCode.USER_NOT_FOUND ||
+                       e.getErrorCode() == SessionValidationException.SessionValidationErrorCode.USER_DISABLED ||
+                       e.getErrorCode() == SessionValidationException.SessionValidationErrorCode.USER_LOCKED) {
+                // 认证失败，返回401
+                return ResponseEntity.status(401)
+                        .body(new SmsSendResponse(false, e.getMessage(), java.time.LocalDateTime.now(), null));
+            } else {
+                // 服务器错误，返回500
+                return ResponseEntity.internalServerError()
+                        .body(new SmsSendResponse(false, e.getMessage(), java.time.LocalDateTime.now(), null));
+            }
+        } catch (IllegalArgumentException e) {
+            log.warn("发送账号注销短信验证码参数异常: message={}", e.getMessage());
+            return ResponseEntity.badRequest()
+                    .body(new SmsSendResponse(false, e.getMessage(), java.time.LocalDateTime.now(), null));
+        } catch (SecurityException e) {
+            log.warn("发送账号注销短信验证码安全异常: message={}", e.getMessage());
+            return ResponseEntity.status(429)
+                    .body(new SmsSendResponse(false, e.getMessage(), java.time.LocalDateTime.now(), null));
+        } catch (SmsSendException e) {
+            log.warn("发送账号注销短信验证码短信发送异常: errorCode={}, message={}",
+                e.getErrorCode().getCode(), e.getMessage());
+
+            // 根据错误码返回不同的HTTP状态码
+            if (e.getErrorCode() == SmsSendException.SmsSendErrorCode.INVALID_PHONE_NUMBER ||
+                e.getErrorCode() == SmsSendException.SmsSendErrorCode.PHONE_NUMBER_REQUIRED) {
+                // 客户端错误，返回400
+                return ResponseEntity.badRequest()
+                        .body(new SmsSendResponse(false, e.getMessage(), java.time.LocalDateTime.now(), null));
+            } else if (e.getErrorCode() == SmsSendException.SmsSendErrorCode.DEVICE_LIMITED ||
+                       e.getErrorCode() == SmsSendException.SmsSendErrorCode.SMS_ALREADY_SENT) {
+                // 请求过于频繁，返回429
+                return ResponseEntity.status(429)
+                        .body(new SmsSendResponse(false, e.getMessage(), java.time.LocalDateTime.now(), null));
+            } else {
+                // 服务器错误，返回500
+                return ResponseEntity.internalServerError()
+                        .body(new SmsSendResponse(false, e.getMessage(), java.time.LocalDateTime.now(), null));
+            }
+        } catch (Exception e) {
+            log.error("发送账号注销短信验证码系统异常: error={}", e.getMessage(), e);
+            return ResponseEntity.internalServerError()
+                    .body(new SmsSendResponse(false, "系统异常，请稍后重试", java.time.LocalDateTime.now(), null));
+        }
+    }
+
+    /**
+     * 提交账号注销申请
+     */
+    @PostMapping("/account/deletion/submit")
+    @Operation(
+        summary = "提交账号注销申请",
+        description = "提交账号注销申请，需要提供短信验证码进行验证。注销后账号将被软删除。"
+    )
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "200", description = "注销成功",
+            content = @Content(schema = @Schema(implementation = AccountDeletionResponse.class),
+                examples = @ExampleObject(value = "{\"success\":true,\"message\":\"账号注销成功\",\"timestamp\":\"2024-01-01T12:00:00\",\"deletionId\":\"deletion-123456\"}"))),
+        @ApiResponse(responseCode = "400", description = "请求参数错误",
+            content = @Content(schema = @Schema(implementation = AccountDeletionResponse.class),
+                examples = @ExampleObject(value = "{\"success\":false,\"message\":\"用户不存在\",\"timestamp\":\"2024-01-01T12:00:00\",\"deletionId\":null}"))),
+        @ApiResponse(responseCode = "401", description = "认证失败",
+            content = @Content(schema = @Schema(implementation = AccountDeletionResponse.class),
+                examples = @ExampleObject(value = "{\"success\":false,\"message\":\"会话已过期，请重新登录\",\"timestamp\":\"2024-01-01T12:00:00\",\"deletionId\":null}"))),
+        @ApiResponse(responseCode = "500", description = "系统异常",
+            content = @Content(schema = @Schema(implementation = AccountDeletionResponse.class),
+                examples = @ExampleObject(value = "{\"success\":false,\"message\":\"系统异常，请稍后重试\",\"timestamp\":\"2024-01-01T12:00:00\",\"deletionId\":null}")))
+    })
+    public ResponseEntity<AccountDeletionResponse> submitDeletion(
+            @RequestHeader(value = "Authorization", required = false) String authorization,
+            @Valid @RequestBody AccountDeletionRequest request) {
+
+        try {
+            log.info("请求提交账号注销申请");
+
+            // 检查Authorization头是否存在
+            if (authorization == null || authorization.trim().isEmpty()) {
+                log.warn("缺少Authorization头");
+                return ResponseEntity.badRequest()
+                        .body(new AccountDeletionResponse(false, "缺少Authorization头", java.time.LocalDateTime.now(), null));
+            }
+
+            String sessionToken = extractTokenFromHeader(authorization);
+            if (sessionToken == null) {
+                log.warn("Authorization头格式无效: {}", authorization);
+                return ResponseEntity.badRequest()
+                        .body(new AccountDeletionResponse(false, "Authorization头格式无效", java.time.LocalDateTime.now(), null));
+            }
+
+            // 调用应用服务
+            AccountDeletionResponse response = authenticationAppService.submitDeletion(sessionToken, request);
+
+            if (response.isSuccess()) {
+                return ResponseEntity.ok(response);
+            } else {
+                // 根据错误消息返回不同的HTTP状态码
+                if (response.getMessage().contains("用户不存在")) {
+                    return ResponseEntity.badRequest().body(response);
+                } else if (response.getMessage().contains("会话") || response.getMessage().contains("登录")) {
+                    return ResponseEntity.status(401).body(response);
+                } else {
+                    return ResponseEntity.internalServerError().body(response);
+                }
+            }
+
+        } catch (SessionValidationException e) {
+            log.warn("提交账号注销申请会话验证异常: errorCode={}, message={}",
+                e.getErrorCode().getCode(), e.getMessage());
+
+            // 根据错误码返回不同的HTTP状态码
+            if (e.getErrorCode() == SessionValidationException.SessionValidationErrorCode.TOKEN_REQUIRED ||
+                e.getErrorCode() == SessionValidationException.SessionValidationErrorCode.INVALID_TOKEN_FORMAT) {
+                // 客户端错误，返回400
+                return ResponseEntity.badRequest()
+                        .body(new AccountDeletionResponse(false, e.getMessage(), java.time.LocalDateTime.now(), null));
+            } else if (e.getErrorCode() == SessionValidationException.SessionValidationErrorCode.TOKEN_NOT_FOUND ||
+                       e.getErrorCode() == SessionValidationException.SessionValidationErrorCode.TOKEN_EXPIRED ||
+                       e.getErrorCode() == SessionValidationException.SessionValidationErrorCode.TOKEN_INVALID ||
+                       e.getErrorCode() == SessionValidationException.SessionValidationErrorCode.USER_NOT_FOUND ||
+                       e.getErrorCode() == SessionValidationException.SessionValidationErrorCode.USER_DISABLED ||
+                       e.getErrorCode() == SessionValidationException.SessionValidationErrorCode.USER_LOCKED) {
+                // 认证失败，返回401
+                return ResponseEntity.status(401)
+                        .body(new AccountDeletionResponse(false, e.getMessage(), java.time.LocalDateTime.now(), null));
+            } else {
+                // 服务器错误，返回500
+                return ResponseEntity.internalServerError()
+                        .body(new AccountDeletionResponse(false, e.getMessage(), java.time.LocalDateTime.now(), null));
+            }
+        } catch (IllegalArgumentException e) {
+            log.warn("提交账号注销申请参数异常: message={}", e.getMessage());
+            return ResponseEntity.badRequest()
+                    .body(new AccountDeletionResponse(false, e.getMessage(), java.time.LocalDateTime.now(), null));
+        } catch (SecurityException e) {
+            log.warn("提交账号注销申请安全异常: message={}", e.getMessage());
+            return ResponseEntity.status(401)
+                    .body(new AccountDeletionResponse(false, e.getMessage(), java.time.LocalDateTime.now(), null));
+        } catch (Exception e) {
+            log.error("提交账号注销申请系统异常: error={}", e.getMessage(), e);
+            return ResponseEntity.internalServerError()
+                    .body(new AccountDeletionResponse(false, "系统异常，请稍后重试", java.time.LocalDateTime.now(), null));
         }
     }
 }

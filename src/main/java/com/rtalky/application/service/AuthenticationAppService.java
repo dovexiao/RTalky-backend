@@ -9,6 +9,10 @@ import com.rtalky.application.dto.PasswordSmsSendRequest;
 import com.rtalky.application.dto.PasswordSetRequest;
 import com.rtalky.application.dto.PasswordChangeRequest;
 import com.rtalky.application.dto.PasswordResponse;
+import com.rtalky.application.dto.AccountDeletionSmsRequest;
+import com.rtalky.application.dto.AccountDeletionRequest;
+import com.rtalky.application.dto.AccountDeletionResponse;
+import com.rtalky.application.dto.SmsSendResponse;
 
 /**
  * 认证应用服务接口
@@ -24,21 +28,6 @@ public interface AuthenticationAppService {
      */
     boolean sendSmsCode(SmsSendRequest request);
 
-    /**
-     * 执行登录操作
-     *
-     * @param request 登录请求
-     * @return 登录响应
-     */
-    LoginResponse login(LoginRequest request);
-
-    /**
-     * 一键登录
-     *
-     * @param request 登录请求（包含一键登录令牌）
-     * @return 登录响应
-     */
-    LoginResponse oneClickLogin(LoginRequest request);
 
     /**
      * 短信验证码登录
@@ -115,4 +104,22 @@ public interface AuthenticationAppService {
      * @return 修改结果
      */
     PasswordResponse changePassword(String sessionToken, PasswordChangeRequest request);
+
+    /**
+     * 发送账号注销短信验证码
+     *
+     * @param sessionToken 会话令牌
+     * @param request 账号注销短信发送请求
+     * @return 发送结果
+     */
+    SmsSendResponse sendDeletionSmsCode(String sessionToken, AccountDeletionSmsRequest request);
+
+    /**
+     * 提交账号注销申请
+     *
+     * @param sessionToken 会话令牌
+     * @param request 账号注销申请请求
+     * @return 注销结果
+     */
+    AccountDeletionResponse submitDeletion(String sessionToken, AccountDeletionRequest request);
 }

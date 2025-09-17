@@ -9,6 +9,10 @@ import com.rtalky.application.dto.PasswordSmsSendRequest;
 import com.rtalky.application.dto.PasswordSetRequest;
 import com.rtalky.application.dto.PasswordChangeRequest;
 import com.rtalky.application.dto.PasswordResponse;
+import com.rtalky.application.dto.AccountDeletionSmsRequest;
+import com.rtalky.application.dto.AccountDeletionRequest;
+import com.rtalky.application.dto.AccountDeletionResponse;
+import com.rtalky.application.dto.SmsSendResponse;
 import com.rtalky.application.util.PasswordValidator;
 import com.rtalky.application.exception.SmsSendException;
 import com.rtalky.application.exception.SmsLoginException;
@@ -17,6 +21,7 @@ import com.rtalky.application.exception.SessionValidationException;
 import com.rtalky.application.service.AuthenticationAppService;
 import com.rtalky.domain.event.UserLoggedInEvent;
 import com.rtalky.domain.event.UserRegisteredEvent;
+import com.rtalky.domain.event.UserDeletedEvent;
 import com.rtalky.domain.model.AuthMethod;
 import com.rtalky.domain.model.UserStatus;
 import com.rtalky.domain.model.LoginRecord;
@@ -27,10 +32,8 @@ import com.rtalky.domain.service.AuthenticationService;
 import com.rtalky.infrastructure.cache.CacheService;
 import com.rtalky.infrastructure.device.DeviceFingerprintService;
 import com.rtalky.infrastructure.device.DeviceInfoParser;
-import com.rtalky.infrastructure.device.exception.DeviceLimitedException;
-import com.rtalky.infrastructure.external.OneClickAuthClient;
-import com.rtalky.infrastructure.external.SmsClient;
 import com.rtalky.interfaces.converter.ResponseBuilder;
+import com.rtalky.application.service.login.LoginHandler;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -51,12 +54,11 @@ public class AuthenticationAppServiceImpl implements AuthenticationAppService {
     private final AuthenticationService authenticationService;
     private final UserRepository userRepository;
     private final LoginRecordRepository loginRecordRepository;
-    private final SmsClient smsClient;
-    private final OneClickAuthClient oneClickAuthClient;
     private final DeviceFingerprintService deviceFingerprintService;
     private final DeviceInfoParser deviceInfoParser;
     private final CacheService cacheService;
     private final ApplicationEventPublisher eventPublisher;
+    private final java.util.List<LoginHandler> loginHandlers;
     private final ResponseBuilder responseBuilder;
 
     @Value("${app.session.expire-hours:24}")
@@ -66,41 +68,41 @@ public class AuthenticationAppServiceImpl implements AuthenticationAppService {
     @Transactional
     public boolean sendSmsCode(SmsSendRequest request) {
         try {
-        // 验证协议同意状态
-        if (!request.getAgreedToTerms()) {
-                throw new SmsSendException(SmsSendException.SmsSendErrorCode.AGREEMENT_NOT_ACCEPTED,
-                    "必须同意用户协议和隐私政策");
+            // 验证协议同意状态
+            if (!request.getAgreedToTerms()) {
+                    throw new SmsSendException(SmsSendException.SmsSendErrorCode.AGREEMENT_NOT_ACCEPTED,
+                        "必须同意用户协议和隐私政策");
+                }
+
+                // 验证手机号
+                if (request.getPhoneNumber() == null || request.getPhoneNumber().trim().isEmpty()) {
+                    throw new SmsSendException(SmsSendException.SmsSendErrorCode.PHONE_NUMBER_REQUIRED,
+                        "手机号不能为空");
             }
 
-            // 验证手机号
-            if (request.getPhoneNumber() == null || request.getPhoneNumber().trim().isEmpty()) {
-                throw new SmsSendException(SmsSendException.SmsSendErrorCode.PHONE_NUMBER_REQUIRED,
-                    "手机号不能为空");
-        }
+            // 生成纯设备指纹用于限流
+            String deviceFingerprint = deviceFingerprintService.generateDeviceFingerprint(standardizeDeviceInfo(request.getDeviceInfo()));
 
-        // 生成纯设备指纹用于限流
-        String deviceFingerprint = deviceFingerprintService.generateDeviceFingerprint(standardizeDeviceInfo(request.getDeviceInfo()));
+            // 检查设备和手机号限制
+            if (deviceFingerprintService.isDeviceLimited(deviceFingerprint, request.getPhoneNumber(), "SEND_SMS")) {
+                    throw new SmsSendException(SmsSendException.SmsSendErrorCode.DEVICE_LIMITED,
+                        "设备或手机号操作受限，请稍后再试");
+            }
 
-        // 检查设备和手机号限制
-        if (deviceFingerprintService.isDeviceLimited(deviceFingerprint, request.getPhoneNumber(), "SEND_SMS")) {
-                throw new SmsSendException(SmsSendException.SmsSendErrorCode.DEVICE_LIMITED,
-                    "设备或手机号操作受限，请稍后再试");
-        }
+            // 发送短信验证码
+            boolean sendResult = authenticationService.sendSmsCode(request.getPhoneNumber(), deviceFingerprint);
 
-        // 发送短信验证码
-        boolean sendResult = authenticationService.sendSmsCode(request.getPhoneNumber(), deviceFingerprint);
+            if (sendResult) {
+                // 记录设备操作
+                deviceFingerprintService.recordDeviceOperation(deviceFingerprint, request.getPhoneNumber(), "SEND_SMS");
+                log.info("短信验证码发送成功: 手机号={}", request.getPhoneNumber());
+            } else {
+                // 发送失败，抛出异常
+                throw new SmsSendException(SmsSendException.SmsSendErrorCode.SMS_SEND_FAILED,
+                    "短信验证码发送失败，请稍后重试");
+            }
 
-        if (sendResult) {
-            // 记录设备操作
-            deviceFingerprintService.recordDeviceOperation(deviceFingerprint, request.getPhoneNumber(), "SEND_SMS");
-            log.info("短信验证码发送成功: 手机号={}", request.getPhoneNumber());
-        } else {
-            // 发送失败，抛出异常
-            throw new SmsSendException(SmsSendException.SmsSendErrorCode.SMS_SEND_FAILED,
-                "短信验证码发送失败，请稍后重试");
-        }
-
-        return sendResult;
+            return sendResult;
 
         } catch (SmsSendException e) {
             // 重新抛出短信发送异常
@@ -116,51 +118,9 @@ public class AuthenticationAppServiceImpl implements AuthenticationAppService {
 
     @Override
     @Transactional
-    public LoginResponse login(LoginRequest request) {
-        // 验证协议同意状态
-        if (!request.getAgreedToTerms()) {
-            throw new IllegalArgumentException("必须同意用户协议和隐私政策");
-        }
-
-        // 根据认证方式调用相应的登录方法
-        return switch (request.getAuthMethod()) {
-            case ONE_CLICK -> oneClickLogin(request);
-            case SMS -> smsLogin(request);
-            case PASSWORD -> passwordLogin(request);
-        };
-    }
-
-    @Override
-    @Transactional
-    public LoginResponse oneClickLogin(LoginRequest request) {
-        // 验证协议同意状态
-        if (!request.getAgreedToTerms()) {
-            throw new IllegalArgumentException("必须同意用户协议和隐私政策");
-        }
-
-        // 生成纯设备指纹用于限流
-        String deviceFingerprint = deviceFingerprintService.generateDeviceFingerprint(standardizeDeviceInfo(request.getDeviceInfo()));
-
-        // 生成复合指纹用于用户绑定
-//        String compositeFingerprint = deviceFingerprintService.generateCompositeFingerprint(
-//                standardizeDeviceInfo(request.getDeviceInfo()), request.getPhoneNumber());
-
-        // 验证一键登录令牌
-        boolean isValid = authenticationService.verifyOneClickToken(
-                request.getPhoneNumber(), request.getOneClickToken(), deviceFingerprint);
-
-        if (!isValid) {
-            log.warn("一键登录令牌验证失败: 手机号={}", request.getPhoneNumber());
-            throw new SecurityException("一键登录验证失败");
-        }
-
-        // 执行登录逻辑
-        return processLogin(request.getPhoneNumber(), AuthMethod.ONE_CLICK, deviceFingerprint, request.getAgreedToTerms(), request.getDeviceInfo());
-    }
-
-    @Override
-    @Transactional
     public LoginResponse smsLogin(LoginRequest request) {
+        String deviceFingerprint = null;
+        String deviceInfo = null;
         try {
             // 验证认证方式
             if (request.getAuthMethod() != AuthMethod.SMS) {
@@ -186,43 +146,70 @@ public class AuthenticationAppServiceImpl implements AuthenticationAppService {
                     "短信验证码不能为空");
             }
 
-        // 生成纯设备指纹用于限流
-        String deviceFingerprint = deviceFingerprintService.generateDeviceFingerprint(standardizeDeviceInfo(request.getDeviceInfo()));
+            // 生成纯设备指纹用于限流
+            deviceInfo = standardizeDeviceInfo(request.getDeviceInfo());
+            deviceFingerprint = deviceFingerprintService.generateDeviceFingerprint(deviceInfo);
 
             // 检查设备限制
-            if (deviceFingerprintService.isDeviceLimited(deviceFingerprint, request.getPhoneNumber(), "SMS_LOGIN")) {
+            if (deviceFingerprintService.isDeviceLimited(deviceFingerprint, request.getPhoneNumber(), "LOGIN_ATTEMPT")) {
                 throw new SmsLoginException(SmsLoginException.SmsLoginErrorCode.DEVICE_LIMITED,
                     "设备或手机号操作受限，请稍后再试");
             }
 
-        // 验证短信验证码
-        boolean isValid = authenticationService.verifySmsCode(
+            // 验证短信验证码（失败也会在finally中计数）
+            boolean isValid = authenticationService.verifySmsCode(
                 request.getPhoneNumber(), request.getSmsCode(), deviceFingerprint);
 
-        if (!isValid) {
-            log.warn("短信验证码验证失败: 手机号={}", request.getPhoneNumber());
-                throw new SmsLoginException(SmsLoginException.SmsLoginErrorCode.SMS_CODE_INVALID,
-                    "短信验证码错误或已过期");
-        }
+            if (!isValid) {
+                log.warn("短信验证码验证失败: 手机号={}", request.getPhoneNumber());
+                    throw new SmsLoginException(SmsLoginException.SmsLoginErrorCode.SMS_CODE_INVALID,
+                        "短信验证码错误或已过期");
+            }
 
-        // 执行登录逻辑
-        return processLogin(request.getPhoneNumber(), AuthMethod.SMS, deviceFingerprint, request.getAgreedToTerms(), request.getDeviceInfo());
+            // 路由到对应登录处理器
+            LoginHandler handler = resolveLoginHandler(AuthMethod.SMS);
+            User user = handler.handle(request.getPhoneNumber(), deviceFingerprint, request.getAgreedToTerms(), deviceInfo);
 
+            // 更新最后登录时间并保存
+            user.updateLastLoginTime();
+            userRepository.save(user);
+
+            // 生成会话令牌
+            String sessionToken = generateSessionToken(user);
+
+            // 发布事件
+            publishLoginEvent(user, AuthMethod.SMS, deviceFingerprint, false);
+
+            // 成功登录记录
+            createLoginRecord(user, AuthMethod.SMS, deviceFingerprint, true, null, deviceInfo);
+
+            // 构建响应
+            return responseBuilder.buildLoginResponse(user, sessionToken, sessionExpireHours);
         } catch (SmsLoginException e) {
+            // 失败登录记录
+            tryRecordFailureLogin(AuthMethod.SMS, request.getPhoneNumber(), deviceFingerprint, e.getMessage(), deviceInfo);
             // 重新抛出短信登录异常
             throw e;
         } catch (Exception e) {
             // 其他异常包装为短信登录异常
             log.error("短信登录过程中发生未知异常: phoneNumber={}, error={}",
                 request.getPhoneNumber(), e.getMessage(), e);
+            tryRecordFailureLogin(AuthMethod.SMS, request.getPhoneNumber(), deviceFingerprint, e.getMessage(), deviceInfo);
             throw new SmsLoginException(SmsLoginException.SmsLoginErrorCode.UNKNOWN_ERROR,
                 "短信登录过程中发生异常，请稍后重试", e);
+        } finally {
+            // 无论成功失败，尝试计数一次
+            if (deviceFingerprint != null && request.getPhoneNumber() != null) {
+                deviceFingerprintService.recordDeviceOperation(deviceFingerprint, request.getPhoneNumber(), "LOGIN_ATTEMPT");
+            }
         }
     }
 
     @Override
     @Transactional
     public LoginResponse passwordLogin(LoginRequest request) {
+        String deviceFingerprint = null;
+        String deviceInfo = null;
         try {
             // 验证认证方式
             if (request.getAuthMethod() != AuthMethod.PASSWORD) {
@@ -249,44 +236,16 @@ public class AuthenticationAppServiceImpl implements AuthenticationAppService {
             }
 
             // 生成纯设备指纹用于限流
-            String deviceFingerprint = deviceFingerprintService.generateDeviceFingerprint(standardizeDeviceInfo(request.getDeviceInfo()));
+            deviceInfo = standardizeDeviceInfo(request.getDeviceInfo());
+            deviceFingerprint = deviceFingerprintService.generateDeviceFingerprint(deviceInfo);
 
             // 检查设备限制
-            if (deviceFingerprintService.isDeviceLimited(deviceFingerprint, request.getPhoneNumber(), "PASSWORD_LOGIN")) {
+            if (deviceFingerprintService.isDeviceLimited(deviceFingerprint, request.getPhoneNumber(), "LOGIN_ATTEMPT")) {
                 throw new PasswordLoginException(PasswordLoginException.PasswordLoginErrorCode.DEVICE_LIMITED,
                     "设备或手机号操作受限，请稍后再试");
             }
 
-            // 获取用户信息
-            Optional<User> userOptional = userRepository.findByPhoneNumber(request.getPhoneNumber());
-            if (userOptional.isEmpty()) {
-                throw new PasswordLoginException(PasswordLoginException.PasswordLoginErrorCode.USER_NOT_FOUND,
-                    "用户不存在");
-            }
-
-            User user = userOptional.get();
-
-            // 检查用户状态
-            if (!user.isAccountActive()) {
-                if (user.getStatus() == UserStatus.DISABLED) {
-                    throw new PasswordLoginException(PasswordLoginException.PasswordLoginErrorCode.ACCOUNT_DISABLED,
-                        "账号已被禁用，请联系客服");
-                } else if (user.getStatus() == UserStatus.LOCKED) {
-                    throw new PasswordLoginException(PasswordLoginException.PasswordLoginErrorCode.ACCOUNT_LOCKED,
-                        "账号已被锁定，请联系客服");
-                } else {
-                    throw new PasswordLoginException(PasswordLoginException.PasswordLoginErrorCode.ACCOUNT_DISABLED,
-                        "用户账号不可用");
-                }
-            }
-
-            // 检查用户是否已设置密码
-            if (!user.hasPassword()) {
-                throw new PasswordLoginException(PasswordLoginException.PasswordLoginErrorCode.PASSWORD_NOT_SET,
-                    "请先设置密码");
-            }
-
-            // 验证密码
+            // 验证密码（失败也会在finally中计数）
             boolean isValid = authenticationService.verifyPassword(request.getPhoneNumber(), request.getPassword());
             if (!isValid) {
                 log.warn("密码验证失败: 手机号={}", request.getPhoneNumber());
@@ -294,22 +253,44 @@ public class AuthenticationAppServiceImpl implements AuthenticationAppService {
                     "密码错误");
             }
 
-            // 记录设备操作
-            deviceFingerprintService.recordDeviceOperation(deviceFingerprint, request.getPhoneNumber(), "PASSWORD_LOGIN");
+            // 路由到对应登录处理器
+            LoginHandler handler = resolveLoginHandler(AuthMethod.PASSWORD);
+            User user = handler.handle(request.getPhoneNumber(), deviceFingerprint, request.getAgreedToTerms(), deviceInfo);
+
+            // 更新最后登录时间并保存
+            user.updateLastLoginTime();
+            userRepository.save(user);
+
+            // 生成会话令牌
+            String sessionToken = generateSessionToken(user);
+
+            // 发布事件
+            publishLoginEvent(user, AuthMethod.PASSWORD, deviceFingerprint, false);
+
+            // 成功登录记录
+            createLoginRecord(user, AuthMethod.PASSWORD, deviceFingerprint, true, null, deviceInfo);
 
             // 执行登录逻辑
             log.info("密码登录成功: phoneNumber={}, userId={}", request.getPhoneNumber(), user.getUserId());
-            return processLogin(request.getPhoneNumber(), AuthMethod.PASSWORD, deviceFingerprint, request.getAgreedToTerms(), request.getDeviceInfo());
+            return responseBuilder.buildLoginResponse(user, sessionToken, sessionExpireHours);
 
         } catch (PasswordLoginException e) {
+            // 失败登录记录
+            tryRecordFailureLogin(AuthMethod.PASSWORD, request.getPhoneNumber(), deviceFingerprint, e.getMessage(), deviceInfo);
             // 重新抛出密码登录异常
             throw e;
         } catch (Exception e) {
             // 其他异常包装为密码登录异常
             log.error("密码登录过程中发生未知异常: phoneNumber={}, error={}",
                 request.getPhoneNumber(), e.getMessage(), e);
+            tryRecordFailureLogin(AuthMethod.PASSWORD, request.getPhoneNumber(), deviceFingerprint, e.getMessage(), deviceInfo);
             throw new PasswordLoginException(PasswordLoginException.PasswordLoginErrorCode.UNKNOWN_ERROR,
                 "密码登录过程中发生异常，请稍后重试", e);
+        } finally {
+            // 无论成功失败，尝试计数一次
+            if (deviceFingerprint != null && request.getPhoneNumber() != null) {
+                deviceFingerprintService.recordDeviceOperation(deviceFingerprint, request.getPhoneNumber(), "LOGIN_ATTEMPT");
+            }
         }
     }
 
@@ -561,80 +542,26 @@ public class AuthenticationAppServiceImpl implements AuthenticationAppService {
         return base64.matches("^[A-Za-z0-9+/]*={0,2}$");
     }
 
-    /**
-     * 处理登录逻辑
-     */
-    private LoginResponse processLogin(
-        String phoneNumber,
-        AuthMethod authMethod,
-        String deviceFingerprint,
-        boolean agreedToTerms,
-        String deviceInfo
-    ) {
-        // 检查设备限制
-        if (deviceFingerprintService.isDeviceLimited(deviceFingerprint, phoneNumber, "LOGIN_ATTEMPT")) {
-            throw new DeviceLimitedException("登录操作受限，请稍后再试");
-        }
-
-        // 查询用户是否存在
-        Optional<User> userOptional = userRepository.findByPhoneNumber(phoneNumber);
-        User user;
-        boolean isNewUser = false;
-
-        if (userOptional.isEmpty()) {
-            // 自动注册新用户
-            user = User.newUser(phoneNumber, deviceFingerprint, agreedToTerms, authMethod);
-            user = userRepository.save(user);
-            isNewUser = true;
-            log.info("新用户注册成功: userId={}, phoneNumber={}", user.getUserId(), phoneNumber);
-        } else {
-            user = userOptional.get();
-
-            // 更新用户协议同意状态（如果之前未同意，这次同意了）
-            if (agreedToTerms && !user.isAgreedToTerms()) {
-                user.verifyAgreement(agreedToTerms);
-                user = userRepository.save(user);
-            }
-
-            // 更新认证方式（如果需要）
-            if (authMethod != user.getAuthMethod()) {
-                user.setAuthMethod(authMethod);
-                user = userRepository.save(user);
+    // 解析并获取登录处理器
+    private LoginHandler resolveLoginHandler(AuthMethod method) {
+        for (LoginHandler handler : loginHandlers) {
+            if (handler.supports(method)) {
+                return handler;
             }
         }
+        throw new IllegalStateException("未找到对应的登录处理器: " + method);
+    }
 
-        // 检查用户状态
-        if (!user.isAccountActive()) {
-            if (user.getStatus() == UserStatus.DISABLED) {
-                throw new SmsLoginException(SmsLoginException.SmsLoginErrorCode.ACCOUNT_DISABLED,
-                    "账号已被禁用，请联系客服");
-            } else if (user.getStatus() == UserStatus.LOCKED) {
-                throw new SmsLoginException(SmsLoginException.SmsLoginErrorCode.ACCOUNT_LOCKED,
-                    "账号已被锁定，请联系客服");
-            } else {
-                throw new SmsLoginException(SmsLoginException.SmsLoginErrorCode.ACCOUNT_DISABLED,
-                    "账号不可用，状态: " + user.getStatus());
+    // 失败登录记录（最佳努力）
+    private void tryRecordFailureLogin(AuthMethod authMethod, String phoneNumber, String deviceFingerprint, String reason, String deviceInfo) {
+        try {
+            Optional<User> userOptional = (phoneNumber != null) ? userRepository.findByPhoneNumber(phoneNumber) : Optional.empty();
+            if (userOptional.isPresent()) {
+                createLoginRecord(userOptional.get(), authMethod, deviceFingerprint, false, reason, deviceInfo);
             }
+        } catch (Exception ignore) {
+            // ignore logging failures
         }
-
-        // 更新最后登录时间
-        user.updateLastLoginTime();
-        userRepository.save(user);
-
-        // 创建登录记录
-        createLoginRecord(user, authMethod, deviceFingerprint, true, null, deviceInfo);
-
-        // 记录设备操作
-        deviceFingerprintService.recordDeviceOperation(deviceFingerprint, phoneNumber, "LOGIN_ATTEMPT");
-
-        // 生成会话令牌
-        String sessionToken = generateSessionToken(user);
-
-        // 发布登录成功事件
-        publishLoginEvent(user, authMethod, deviceFingerprint, isNewUser);
-
-        // 使用ResponseBuilder构建响应
-        return responseBuilder.buildLoginResponse(user, sessionToken, sessionExpireHours);
     }
 
     /**
@@ -691,6 +618,16 @@ public class AuthenticationAppServiceImpl implements AuthenticationAppService {
     }
 
     /**
+     * 发布用户注销事件
+     */
+    private void publishUserDeletedEvent(User user, String deviceFingerprint) {
+        UserDeletedEvent event = new UserDeletedEvent(this, user, deviceFingerprint);
+        eventPublisher.publishEvent(event);
+        log.debug("发布用户注销事件: userId={}, phoneNumber={}, deletionId={}", 
+            user.getUserId(), user.getPhoneNumber(), user.getDeletionId());
+    }
+
+    /**
      * 获取客户端IP（实际项目中应从请求中获取）
      */
     private String getClientIp() {
@@ -703,10 +640,10 @@ public class AuthenticationAppServiceImpl implements AuthenticationAppService {
         try {
             log.info("请求发送密码设置短信验证码: phoneNumber={}", request.getPhoneNumber());
 
-            // 1. 验证会话并获取用户ID
+            // 验证会话并获取用户ID
             String userId = validateSession(sessionToken);
 
-            // 2. 获取用户信息
+            // 获取用户信息
             Optional<User> userOptional = userRepository.findByUserId(userId);
             if (userOptional.isEmpty()) {
                 log.warn("发送密码设置短信失败: 用户不存在 - userId={}", userId);
@@ -715,26 +652,26 @@ public class AuthenticationAppServiceImpl implements AuthenticationAppService {
 
             User user = userOptional.get();
 
-            // 3. 验证手机号一致性
+            // 验证手机号一致性
             if (!user.getPhoneNumber().equals(request.getPhoneNumber())) {
                 log.warn("发送密码设置短信失败: 手机号不匹配 - userId={}, sessionPhone={}, requestPhone={}",
                     userId, user.getPhoneNumber(), request.getPhoneNumber());
                 return new PasswordResponse(false, "手机号不匹配", LocalDateTime.now());
             }
 
-            // 4. 规范化设备信息
+            // 规范化设备信息
             String deviceInfo = standardizeDeviceInfo(request.getDeviceInfo());
 
-            // 5. 生成设备指纹
+            // 生成设备指纹
             String deviceFingerprint = deviceFingerprintService.generateDeviceFingerprint(deviceInfo);
 
-            // 6. 检查设备限制
-            if (deviceFingerprintService.isDeviceLimited(deviceFingerprint, request.getPhoneNumber(), "PASSWORD_SMS_SEND")) {
+            // 检查设备限制
+            if (deviceFingerprintService.isDeviceLimited(deviceFingerprint, request.getPhoneNumber(), "SEND_SMS")) {
                 log.warn("密码设置短信发送受限: phoneNumber={}, deviceFingerprint={}", request.getPhoneNumber(), deviceFingerprint);
                 return new PasswordResponse(false, "操作受限，请稍后再试", LocalDateTime.now());
             }
 
-            // 7. 验证密码强度
+            // 验证密码强度
             PasswordValidator.PasswordValidationResult validationResult = PasswordValidator.validate(
                 request.getNewPassword(), user.getPhoneNumber(), user.getUserId());
 
@@ -744,10 +681,10 @@ public class AuthenticationAppServiceImpl implements AuthenticationAppService {
                 return new PasswordResponse(false, validationResult.getMessage(), LocalDateTime.now());
             }
 
-            // 5. 哈希新密码
+            // 哈希新密码
             String hashedPassword = authenticationService.hashPassword(request.getNewPassword());
 
-            // 6. 缓存新密码
+            // 缓存新密码
             boolean cacheResult = authenticationService.cachePasswordForSetup(
                 request.getPhoneNumber(), deviceFingerprint, hashedPassword);
 
@@ -757,12 +694,12 @@ public class AuthenticationAppServiceImpl implements AuthenticationAppService {
                 return new PasswordResponse(false, "系统异常，请稍后重试", LocalDateTime.now());
             }
 
-            // 7. 调用领域服务发送短信
+            // 调用领域服务发送短信
             boolean result = authenticationService.sendPasswordSmsCode(request.getPhoneNumber(), deviceFingerprint);
 
             if (result) {
                 // 记录设备操作
-                deviceFingerprintService.recordDeviceOperation(deviceFingerprint, request.getPhoneNumber(), "PASSWORD_SMS_SEND");
+                deviceFingerprintService.recordDeviceOperation(deviceFingerprint, request.getPhoneNumber(), "SEND_SMS");
                 log.info("密码设置短信验证码发送成功: phoneNumber={}", request.getPhoneNumber());
                 return new PasswordResponse(true, "短信验证码发送成功", LocalDateTime.now());
             } else {
@@ -790,10 +727,10 @@ public class AuthenticationAppServiceImpl implements AuthenticationAppService {
         try {
             log.info("请求设置密码: phoneNumber={}", request.getPhoneNumber());
 
-            // 1. 验证会话令牌并获取用户ID
+            // 验证会话令牌并获取用户ID
             String userId = validateSession(sessionToken);
 
-            // 2. 获取用户信息
+            // 获取用户信息
             Optional<User> userOptional = userRepository.findByUserId(userId);
             if (userOptional.isEmpty()) {
                 log.warn("设置密码失败: 用户不存在 - userId={}", userId);
@@ -802,24 +739,24 @@ public class AuthenticationAppServiceImpl implements AuthenticationAppService {
 
             User user = userOptional.get();
 
-            // 3. 验证手机号一致性
+            // 验证手机号一致性
             if (!user.getPhoneNumber().equals(request.getPhoneNumber())) {
                 log.warn("设置密码失败: 手机号不匹配 - userId={}, sessionPhone={}, requestPhone={}",
                     userId, user.getPhoneNumber(), request.getPhoneNumber());
                 return new PasswordResponse(false, "手机号不匹配", LocalDateTime.now());
             }
 
-            // 4. 检查用户状态
+            // 检查用户状态
             if (!user.isAccountActive()) {
                 log.warn("设置密码失败: 用户账号不可用 - userId={}, status={}", userId, user.getStatus());
                 return new PasswordResponse(false, "用户账号不可用", LocalDateTime.now());
             }
 
-            // 5. 生成设备指纹用于验证码校验
-            String deviceFingerprint = deviceFingerprintService.generateDeviceFingerprint(
-                standardizeDeviceInfo("")); // 密码设置时可能没有设备信息
+            // 生成设备指纹用于验证码校验（统一先标准化）
+            String deviceInfo = standardizeDeviceInfo(request.getDeviceInfo());
+            String deviceFingerprint = deviceFingerprintService.generateDeviceFingerprint(deviceInfo);
 
-            // 6. 验证短信验证码
+            // 验证短信验证码
             boolean smsValid = authenticationService.verifyPasswordSmsCode(
                 request.getPhoneNumber(), request.getSmsCode(), deviceFingerprint);
 
@@ -828,7 +765,7 @@ public class AuthenticationAppServiceImpl implements AuthenticationAppService {
                 return new PasswordResponse(false, "短信验证码无效或已过期", LocalDateTime.now());
             }
 
-            // 7. 从缓存获取新密码
+            // 从缓存获取新密码
             String cachedPassword = authenticationService.getCachedPasswordForSetup(
                 request.getPhoneNumber(), deviceFingerprint);
 
@@ -837,7 +774,7 @@ public class AuthenticationAppServiceImpl implements AuthenticationAppService {
                 return new PasswordResponse(false, "密码设置会话已过期，请重新开始", LocalDateTime.now());
             }
 
-            // 8. 设置密码
+            // 设置密码
             boolean setResult = authenticationService.setPassword(request.getPhoneNumber(), cachedPassword);
 
             if (setResult) {
@@ -851,7 +788,7 @@ public class AuthenticationAppServiceImpl implements AuthenticationAppService {
             }
 
         } catch (SessionValidationException e) {
-            log.warn("设置密码会话验证异常: errorCode={}, message={}", 
+            log.warn("设置密码会话验证异常: errorCode={}, message={}",
                 e.getErrorCode().getCode(), e.getMessage());
             return new PasswordResponse(false, e.getMessage(), LocalDateTime.now());
         } catch (SmsSendException e) {
@@ -859,7 +796,7 @@ public class AuthenticationAppServiceImpl implements AuthenticationAppService {
                 request.getPhoneNumber(), e.getErrorCode().getCode(), e.getMessage());
             return new PasswordResponse(false, e.getMessage(), LocalDateTime.now());
         } catch (Exception e) {
-            log.error("设置密码系统异常: phoneNumber={}, error={}", 
+            log.error("设置密码系统异常: phoneNumber={}, error={}",
                 request.getPhoneNumber(), e.getMessage(), e);
             return new PasswordResponse(false, "系统异常，请稍后重试", LocalDateTime.now());
         }
@@ -871,10 +808,10 @@ public class AuthenticationAppServiceImpl implements AuthenticationAppService {
         try {
             log.info("请求修改密码");
 
-            // 1. 验证会话令牌并获取用户ID
+            // 验证会话令牌并获取用户ID
             String userId = validateSession(sessionToken);
 
-            // 2. 获取用户信息
+            // 获取用户信息
             Optional<User> userOptional = userRepository.findByUserId(userId);
             if (userOptional.isEmpty()) {
                 log.warn("修改密码失败: 用户不存在 - userId={}", userId);
@@ -883,13 +820,13 @@ public class AuthenticationAppServiceImpl implements AuthenticationAppService {
 
             User user = userOptional.get();
 
-            // 3. 检查用户是否已设置密码
+            // 检查用户是否已设置密码
             if (!user.hasPassword()) {
                 log.warn("修改密码失败: 用户未设置密码 - userId={}", userId);
                 return new PasswordResponse(false, "请先设置密码", LocalDateTime.now());
             }
 
-            // 4. 验证密码强度
+            // 验证密码强度
             PasswordValidator.PasswordValidationResult validationResult = PasswordValidator.validate(
                 request.getNewPassword(), user.getPhoneNumber(), user.getUserId());
 
@@ -898,7 +835,7 @@ public class AuthenticationAppServiceImpl implements AuthenticationAppService {
                 return new PasswordResponse(false, validationResult.getMessage(), LocalDateTime.now());
             }
 
-            // 5. 修改密码（直接传递用户对象，避免重复查询）
+            // 修改密码（直接传递用户对象，避免重复查询）
             boolean changeResult = authenticationService.changePassword(
                 user, request.getOldPassword(), request.getNewPassword());
 
@@ -911,7 +848,7 @@ public class AuthenticationAppServiceImpl implements AuthenticationAppService {
             }
 
         } catch (SessionValidationException e) {
-            log.warn("修改密码会话验证异常: errorCode={}, message={}", 
+            log.warn("修改密码会话验证异常: errorCode={}, message={}",
                 e.getErrorCode().getCode(), e.getMessage());
             return new PasswordResponse(false, e.getMessage(), LocalDateTime.now());
         } catch (SmsSendException e) {
@@ -921,6 +858,163 @@ public class AuthenticationAppServiceImpl implements AuthenticationAppService {
         } catch (Exception e) {
             log.error("修改密码系统异常: error={}", e.getMessage(), e);
             return new PasswordResponse(false, "系统异常，请稍后重试", LocalDateTime.now());
+        }
+    }
+
+    @Override
+    public SmsSendResponse sendDeletionSmsCode(String sessionToken, AccountDeletionSmsRequest request) {
+        try {
+            log.info("请求发送账号注销短信验证码");
+
+            // 验证会话令牌并获取用户ID
+            String userId = validateSession(sessionToken);
+
+            // 验证是否已同意注销说明
+            if (request.getAgreedToDeletion() == null || !request.getAgreedToDeletion()) {
+                log.warn("发送账号注销短信验证码失败: 未同意注销说明 - userId={}", userId);
+                throw new IllegalArgumentException("必须同意注销说明");
+            }
+
+            // 获取用户信息
+            Optional<User> userOptional = userRepository.findByUserId(userId);
+            if (userOptional.isEmpty()) {
+                log.warn("发送账号注销短信验证码失败: 用户不存在 - userId={}", userId);
+                throw new IllegalArgumentException("用户不存在");
+            }
+
+            User user = userOptional.get();
+
+            // 检查设备限流
+            String deviceFingerprint = deviceFingerprintService.generateDeviceFingerprint(standardizeDeviceInfo(request.getDeviceInfo()));
+            if (deviceFingerprintService.isDeviceLimited(deviceFingerprint, user.getPhoneNumber(), "SEND_SMS")) {
+                log.warn("发送账号注销短信验证码失败: 设备操作受限 - userId={}, deviceFingerprint={}", userId, deviceFingerprint);
+                throw new SecurityException("操作受限，请稍后再试");
+            }
+
+            // 发送短信验证码
+            boolean result = authenticationService.sendDeletionSmsCode(user.getPhoneNumber(), deviceFingerprint);
+
+            if (result) {
+                // 记录设备操作
+                deviceFingerprintService.recordDeviceOperation(deviceFingerprint, user.getPhoneNumber(), "SEND_SMS");
+                log.info("账号注销短信验证码发送成功: userId={}, phoneNumber={}", userId, user.getPhoneNumber());
+                return new SmsSendResponse(true, "验证码发送成功", LocalDateTime.now(), 6);
+            } else {
+                log.error("账号注销短信验证码发送失败: userId={}, phoneNumber={}", userId, user.getPhoneNumber());
+                throw new SmsSendException(SmsSendException.SmsSendErrorCode.SMS_SEND_FAILED, "验证码发送失败");
+            }
+
+        } catch (SessionValidationException e) {
+            log.warn("发送账号注销短信验证码会话验证异常: errorCode={}, message={}",
+                e.getErrorCode().getCode(), e.getMessage());
+            throw e;
+        } catch (IllegalArgumentException e) {
+            log.warn("发送账号注销短信验证码参数异常: message={}", e.getMessage());
+            throw e;
+        } catch (SecurityException e) {
+            log.warn("发送账号注销短信验证码安全异常: message={}", e.getMessage());
+            throw e;
+        } catch (SmsSendException e) {
+            log.warn("发送账号注销短信验证码短信发送异常: errorCode={}, message={}",
+                e.getErrorCode().getCode(), e.getMessage());
+            throw e;
+        } catch (Exception e) {
+            log.error("发送账号注销短信验证码系统异常: error={}", e.getMessage(), e);
+            throw new SmsSendException(SmsSendException.SmsSendErrorCode.UNKNOWN_ERROR, "系统异常，请稍后重试");
+        }
+    }
+
+    @Override
+    @Transactional
+    public AccountDeletionResponse submitDeletion(String sessionToken, AccountDeletionRequest request) {
+        try {
+            log.info("请求提交账号注销申请");
+
+            // 验证会话令牌并获取用户ID
+            String userId = validateSession(sessionToken);
+
+            // 获取用户信息
+            Optional<User> userOptional = userRepository.findByUserId(userId);
+            if (userOptional.isEmpty()) {
+                log.warn("提交账号注销申请失败: 用户不存在 - userId={}", userId);
+                throw new IllegalArgumentException("用户不存在");
+            }
+
+            User user = userOptional.get();
+
+            // 验证短信验证码
+            String deviceFingerprint = deviceFingerprintService.generateDeviceFingerprint(standardizeDeviceInfo(request.getDeviceInfo()));
+            boolean smsValid = authenticationService.verifyDeletionSmsCode(user.getPhoneNumber(), request.getSmsCode(), deviceFingerprint);
+            if (!smsValid) {
+                log.warn("提交账号注销申请失败: 短信验证码错误或已过期 - userId={}", userId);
+                throw new SecurityException("短信验证码错误或已过期");
+            }
+
+            // 软删除用户数据
+            user.markAsDeleted();
+            user.setDeletionTime(LocalDateTime.now());
+            user.setDeletionReason(request.getDeletionReason());
+            user.setDeletionId(UUID.randomUUID().toString());
+            userRepository.save(user);
+
+            // 失效当前会话
+            String sessionKey = "session:" + sessionToken;
+            cacheService.delete(sessionKey);
+            log.debug("失效当前会话: sessionKey={}", sessionKey);
+
+            // 清理验证码/密码缓存
+            String smsCodeKey = "sms:code:" + user.getPhoneNumber() + ":" + deviceFingerprint;
+            String passwordKey = "password:setup:" + user.getPhoneNumber() + ":" + deviceFingerprint;
+            cacheService.delete(smsCodeKey);
+            cacheService.delete(passwordKey);
+            log.debug("清理验证码和密码缓存: smsCodeKey={}, passwordKey={}", smsCodeKey, passwordKey);
+
+            // 清理计数键
+            String phoneSmsKey = "opcount:sms:phone:" + user.getPhoneNumber();
+            String phoneLoginKey = "opcount:login:phone:" + user.getPhoneNumber();
+            String deviceSmsKey = "opcount:sms:device:" + deviceFingerprint;
+            String deviceLoginKey = "opcount:login:device:" + deviceFingerprint;
+            cacheService.delete(phoneSmsKey);
+            cacheService.delete(phoneLoginKey);
+            cacheService.delete(deviceSmsKey);
+            cacheService.delete(deviceLoginKey);
+            log.debug("清理计数键: phoneSmsKey={}, phoneLoginKey={}, deviceSmsKey={}, deviceLoginKey={}", 
+                phoneSmsKey, phoneLoginKey, deviceSmsKey, deviceLoginKey);
+
+            // 清理限制键
+            String deviceLoginLimitKey = "limit:login:device:" + deviceFingerprint;
+            String deviceSmsLimitKey = "limit:sms:device:" + deviceFingerprint;
+            String phoneLoginLimitKey = "limit:login:phone:" + user.getPhoneNumber();
+            String phoneSmsLimitKey = "limit:sms:phone:" + user.getPhoneNumber();
+            cacheService.delete(deviceLoginLimitKey);
+            cacheService.delete(deviceSmsLimitKey);
+            cacheService.delete(phoneLoginLimitKey);
+            cacheService.delete(phoneSmsLimitKey);
+            log.debug("清理限制键: deviceLoginLimitKey={}, deviceSmsLimitKey={}, phoneLoginLimitKey={}, phoneSmsLimitKey={}", 
+                deviceLoginLimitKey, deviceSmsLimitKey, phoneLoginLimitKey, phoneSmsLimitKey);
+
+            // 发布用户注销事件
+            publishUserDeletedEvent(user, deviceFingerprint);
+
+            // 记录操作日志
+            log.info("用户账号注销成功: userId={}, phoneNumber={}, reason={}, deletionId={}",
+                userId, user.getPhoneNumber(), request.getDeletionReason(), user.getDeletionId());
+
+            return new AccountDeletionResponse(true, "账号注销成功", LocalDateTime.now(), user.getDeletionId());
+
+        } catch (SessionValidationException e) {
+            log.warn("提交账号注销申请会话验证异常: errorCode={}, message={}",
+                e.getErrorCode().getCode(), e.getMessage());
+            throw e;
+        } catch (IllegalArgumentException e) {
+            log.warn("提交账号注销申请参数异常: message={}", e.getMessage());
+            throw e;
+        } catch (SecurityException e) {
+            log.warn("提交账号注销申请安全异常: message={}", e.getMessage());
+            throw e;
+        } catch (Exception e) {
+            log.error("提交账号注销申请系统异常: error={}", e.getMessage(), e);
+            throw new RuntimeException("系统异常，请稍后重试");
         }
     }
 }

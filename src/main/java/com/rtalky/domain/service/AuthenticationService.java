@@ -127,4 +127,23 @@ public interface AuthenticationService {
      * @return 加密后的密码
      */
     String hashPassword(String password);
+
+    /**
+     * 发送账号注销短信验证码
+     *
+     * @param phoneNumber 手机号
+     * @param deviceFingerprint 设备指纹
+     * @return 发送是否成功
+     */
+    boolean sendDeletionSmsCode(String phoneNumber, String deviceFingerprint);
+
+    /**
+     * 验证账号注销短信验证码
+     *
+     * @param phoneNumber 手机号
+     * @param smsCode 短信验证码
+     * @param deviceFingerprint 设备指纹
+     * @return 验证是否成功
+     */
+    boolean verifyDeletionSmsCode(String phoneNumber, String smsCode, String deviceFingerprint);
 }

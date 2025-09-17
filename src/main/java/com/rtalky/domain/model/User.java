@@ -119,6 +119,24 @@ public class User {
     @Column(name = "deleted", nullable = false)
     private Boolean deleted = false;
 
+    /**
+     * 注销时间
+     */
+    @Column(name = "deletion_time")
+    private LocalDateTime deletionTime;
+
+    /**
+     * 注销原因
+     */
+    @Column(name = "deletion_reason", length = 500)
+    private String deletionReason;
+
+    /**
+     * 注销ID
+     */
+    @Column(name = "deletion_id")
+    private String deletionId;
+
     // 工厂方法 - 创建新用户（首次登录时自动注册）
     public static User newUser(
             String phoneNumber,

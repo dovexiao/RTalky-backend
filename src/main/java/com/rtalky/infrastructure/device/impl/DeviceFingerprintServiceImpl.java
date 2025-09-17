@@ -138,18 +138,18 @@ public class DeviceFingerprintServiceImpl implements DeviceFingerprintService {
         }
 
         // 记录设备操作计数
-        String deviceOpKey = "opcount:" + getBusinessType(operation + "_PER_DEVICE") + ":device:" + operation + ":" + fingerprint;
+        String deviceOpKey = "opcount:" + getBusinessType(operation + "_PER_DEVICE") + ":device:" + fingerprint;
         long deviceCount = incrementAndGet(deviceOpKey, configDevice.getTimeWindow());
 
         // 记录手机号操作计数
         if (phoneNumber != null) {
-            String phoneOpKey = "opcount:" + getBusinessType(operation) + ":phone:" + operation + ":" + phoneNumber;
+            String phoneOpKey = "opcount:" + getBusinessType(operation) + ":phone:" + phoneNumber;
             long phoneCount = incrementAndGet(phoneOpKey, config.getTimeWindow());
 
             // 检查是否超过限制
             if (phoneCount >= config.getMaxAttempts()) {
                 String phoneLimitKey = "limit:" + getBusinessType(operation) + ":phone:" + phoneNumber;
-                valueOps.set(phoneLimitKey, "true", Duration.ofHours(24));
+                valueOps.set(phoneLimitKey, "true", Duration.ofMinutes(config.getTimeWindow()));
                 log.warn("手机号 {}, 操作达到或者超过限制，已被限制24小时: 操作: {}, 次数: {}",
                         phoneNumber, operation, phoneCount);
             }
@@ -158,7 +158,7 @@ public class DeviceFingerprintServiceImpl implements DeviceFingerprintService {
         // 检查设备是否超过限制
         if (deviceCount >= configDevice.getMaxAttempts()) {
             String deviceLimitKey = "limit:" + getBusinessType(operation + "_PER_DEVICE") + ":device:" + fingerprint;
-            valueOps.set(deviceLimitKey, "true", Duration.ofHours(24));
+            valueOps.set(deviceLimitKey, "true", Duration.ofMinutes(config.getTimeWindow()));
             log.warn("设备 {}, 操作达到或者超过限制，已被限制24小时: 操作: {}, 次数: {}",
                     fingerprint, operation, deviceCount);
         }

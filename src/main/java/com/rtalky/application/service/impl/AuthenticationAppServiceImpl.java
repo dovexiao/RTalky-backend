@@ -19,6 +19,7 @@ import com.rtalky.application.exception.SmsLoginException;
 import com.rtalky.application.exception.PasswordLoginException;
 import com.rtalky.application.exception.SessionValidationException;
 import com.rtalky.application.service.AuthenticationAppService;
+import com.rtalky.application.service.PhoneRestrictionService;
 import com.rtalky.domain.event.UserLoggedInEvent;
 import com.rtalky.domain.event.UserRegisteredEvent;
 import com.rtalky.domain.event.UserDeletedEvent;
@@ -60,6 +61,7 @@ public class AuthenticationAppServiceImpl implements AuthenticationAppService {
     private final ApplicationEventPublisher eventPublisher;
     private final java.util.List<LoginHandler> loginHandlers;
     private final ResponseBuilder responseBuilder;
+    private final PhoneRestrictionService phoneRestrictionService;
 
     @Value("${app.session.expire-hours:24}")
     private int sessionExpireHours;
@@ -82,6 +84,12 @@ public class AuthenticationAppServiceImpl implements AuthenticationAppService {
 
             // 生成纯设备指纹用于限流
             String deviceFingerprint = deviceFingerprintService.generateDeviceFingerprint(standardizeDeviceInfo(request.getDeviceInfo()));
+
+            // 检查手机号是否被限制
+            if (phoneRestrictionService.isPhoneNumberRestricted(request.getPhoneNumber())) {
+                throw new SmsSendException(SmsSendException.SmsSendErrorCode.PHONE_RESTRICTED,
+                    "该手机号因注销被限制，请等待限制期结束后再试");
+            }
 
             // 检查设备和手机号限制
             if (deviceFingerprintService.isDeviceLimited(deviceFingerprint, request.getPhoneNumber(), "SEND_SMS")) {
@@ -149,6 +157,12 @@ public class AuthenticationAppServiceImpl implements AuthenticationAppService {
             // 生成纯设备指纹用于限流
             deviceInfo = standardizeDeviceInfo(request.getDeviceInfo());
             deviceFingerprint = deviceFingerprintService.generateDeviceFingerprint(deviceInfo);
+
+            // 检查手机号是否被限制
+            if (phoneRestrictionService.isPhoneNumberRestricted(request.getPhoneNumber())) {
+                throw new SmsLoginException(SmsLoginException.SmsLoginErrorCode.PHONE_RESTRICTED,
+                    "该手机号因注销被限制，请等待限制期结束后再试");
+            }
 
             // 检查设备限制
             if (deviceFingerprintService.isDeviceLimited(deviceFingerprint, request.getPhoneNumber(), "LOGIN_ATTEMPT")) {
@@ -238,6 +252,12 @@ public class AuthenticationAppServiceImpl implements AuthenticationAppService {
             // 生成纯设备指纹用于限流
             deviceInfo = standardizeDeviceInfo(request.getDeviceInfo());
             deviceFingerprint = deviceFingerprintService.generateDeviceFingerprint(deviceInfo);
+
+            // 检查手机号是否被限制
+            if (phoneRestrictionService.isPhoneNumberRestricted(request.getPhoneNumber())) {
+                throw new PasswordLoginException(PasswordLoginException.PasswordLoginErrorCode.PHONE_RESTRICTED,
+                    "该手机号因注销被限制，请等待限制期结束后再试");
+            }
 
             // 检查设备限制
             if (deviceFingerprintService.isDeviceLimited(deviceFingerprint, request.getPhoneNumber(), "LOGIN_ATTEMPT")) {
@@ -992,6 +1012,13 @@ public class AuthenticationAppServiceImpl implements AuthenticationAppService {
             cacheService.delete(phoneSmsLimitKey);
             log.debug("清理限制键: deviceLoginLimitKey={}, deviceSmsLimitKey={}, phoneLoginLimitKey={}, phoneSmsLimitKey={}", 
                 deviceLoginLimitKey, deviceSmsLimitKey, phoneLoginLimitKey, phoneSmsLimitKey);
+
+            // 添加手机号限制
+            phoneRestrictionService.addPhoneRestriction(
+                user.getPhoneNumber(), 
+                request.getDeletionReason(), 
+                user.getDeletionId()
+            );
 
             // 发布用户注销事件
             publishUserDeletedEvent(user, deviceFingerprint);

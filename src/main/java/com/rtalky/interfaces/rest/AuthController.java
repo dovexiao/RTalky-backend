@@ -15,7 +15,6 @@ import com.rtalky.application.dto.AccountDeletionSmsRequest;
 import com.rtalky.application.dto.AccountDeletionRequest;
 import com.rtalky.application.dto.AccountDeletionResponse;
 import com.rtalky.application.exception.SmsSendException;
-import com.rtalky.domain.model.AuthMethod;
 import com.rtalky.application.exception.SmsLoginException;
 import com.rtalky.application.exception.PasswordLoginException;
 import com.rtalky.application.exception.SessionValidationException;
@@ -146,6 +145,10 @@ public class AuthController {
                        e.getErrorCode() == SmsSendException.SmsSendErrorCode.SMS_ALREADY_SENT) {
                 // 请求过于频繁，返回429
                 return ResponseEntity.status(429)
+                        .body(responseBuilder.buildSmsSendFailureResponse(e.getMessage()));
+            } else if (e.getErrorCode() == SmsSendException.SmsSendErrorCode.PHONE_RESTRICTED) {
+                // 手机号被限制，返回403
+                return ResponseEntity.status(403)
                         .body(responseBuilder.buildSmsSendFailureResponse(e.getMessage()));
             } else {
                 // 服务器错误，返回500
@@ -357,6 +360,10 @@ public class AuthController {
                 // 请求过于频繁，返回429
                 return ResponseEntity.status(429)
                         .body(responseBuilder.buildLoginFailureResponse(e.getMessage()));
+            } else if (e.getErrorCode() == SmsLoginException.SmsLoginErrorCode.PHONE_RESTRICTED) {
+                // 手机号被限制，返回403
+                return ResponseEntity.status(403)
+                        .body(responseBuilder.buildLoginFailureResponse(e.getMessage()));
             } else {
                 // 服务器错误，返回500
                 return ResponseEntity.internalServerError()
@@ -505,6 +512,10 @@ public class AuthController {
             } else if (e.getErrorCode() == PasswordLoginException.PasswordLoginErrorCode.DEVICE_LIMITED) {
                 // 请求过于频繁，返回429
                 return ResponseEntity.status(429)
+                        .body(responseBuilder.buildLoginFailureResponse(e.getMessage()));
+            } else if (e.getErrorCode() == PasswordLoginException.PasswordLoginErrorCode.PHONE_RESTRICTED) {
+                // 手机号被限制，返回403
+                return ResponseEntity.status(403)
                         .body(responseBuilder.buildLoginFailureResponse(e.getMessage()));
             } else {
                 // 服务器错误，返回500

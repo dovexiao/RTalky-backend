@@ -34,6 +34,7 @@ public class SmsSendException extends RuntimeException {
         SMS_SEND_FAILED("SMS_SEND_FAILED", "短信发送失败，请稍后重试"),
         SMS_SERVICE_ERROR("SMS_SERVICE_ERROR", "短信服务异常，请稍后重试"),
         CACHE_ERROR("CACHE_ERROR", "缓存服务异常，请稍后重试"),
+        PHONE_RESTRICTED("PHONE_RESTRICTED", "手机号被限制"),
         UNKNOWN_ERROR("UNKNOWN_ERROR", "未知错误，请稍后重试");
         
         private final String code;

@@ -38,7 +38,8 @@ public class PasswordLoginException extends RuntimeException {
         ACCOUNT_LOCKED("PASSWORD_LOGIN_0011", "账号已被锁定"),
         PASSWORD_NOT_SET("PASSWORD_LOGIN_0012", "请先设置密码"),
         CACHE_ERROR("PASSWORD_LOGIN_0013", "缓存服务异常"),
-        USER_SERVICE_ERROR("PASSWORD_LOGIN_0014", "用户服务异常");
+        USER_SERVICE_ERROR("PASSWORD_LOGIN_0014", "用户服务异常"),
+        PHONE_RESTRICTED("PASSWORD_LOGIN_0015", "手机号被限制");
 
         private final String code;
         private final String description;

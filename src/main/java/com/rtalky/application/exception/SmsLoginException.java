@@ -38,7 +38,8 @@ public class SmsLoginException extends RuntimeException {
         ACCOUNT_DISABLED("SMS_LOGIN_0011", "账号已被禁用"),
         ACCOUNT_LOCKED("SMS_LOGIN_0012", "账号已被锁定"),
         CACHE_ERROR("SMS_LOGIN_0013", "缓存服务异常"),
-        USER_SERVICE_ERROR("SMS_LOGIN_0014", "用户服务异常");
+        USER_SERVICE_ERROR("SMS_LOGIN_0014", "用户服务异常"),
+        PHONE_RESTRICTED("SMS_LOGIN_0015", "手机号被限制");
 
         private final String code;
         private final String description;

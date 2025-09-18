@@ -68,12 +68,5 @@ public interface LoginRecordRepository {
      */
     long countByDeviceFingerprint(String deviceFingerprint);
 
-    /**
-     * 更新用户登录记录中的手机号
-     *
-     * @param userId 用户ID
-     * @param oldPhoneNumber 旧手机号
-     * @param newPhoneNumber 新手机号
-     */
-    void updatePhoneNumber(String userId, String oldPhoneNumber, String newPhoneNumber);
+    // LoginRecord 不存储 phoneNumber，不需要更新
 }

@@ -1204,22 +1204,19 @@ public class AuthenticationAppServiceImpl implements AuthenticationAppService {
             user.setPhoneNumber(newPhoneNumber);
             userRepository.save(user);
 
-            // 10. 更新登录记录
-            loginRecordRepository.updatePhoneNumber(userId, oldPhoneNumber, newPhoneNumber);
-
-            // 11. 更新会话信息
+            // 10. 更新会话信息
             updateSessionPhoneNumber(sessionToken, newPhoneNumber);
 
-            // 12. 清理缓存
+            // 11. 清理缓存
             authenticationService.clearCachedNewPhoneForChange(userId, deviceFingerprint);
 
-            // 13. 清理旧手机号相关缓存
+            // 12. 清理旧手机号相关缓存
             clearOldPhoneCaches(oldPhoneNumber, deviceFingerprint);
 
-            // 14. 发布换绑成功事件
+            // 13. 发布换绑成功事件
             eventPublisher.publishEvent(new PhoneChangedEvent(this, userId, oldPhoneNumber, newPhoneNumber, LocalDateTime.now(), deviceFingerprint));
 
-            // 15. 记录操作日志
+            // 14. 记录操作日志
             log.info("手机号换绑成功: userId={}, oldPhone={}, newPhone={}", userId, oldPhoneNumber, newPhoneNumber);
 
             return new PhoneChangeResponse(true, "换绑成功", LocalDateTime.now(), newPhoneNumber);

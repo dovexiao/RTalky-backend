@@ -4,11 +4,7 @@ import com.rtalky.domain.model.LoginRecord;
 import com.rtalky.domain.repository.LoginRecordRepository;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.jpa.repository.Modifying;
-import org.springframework.data.jpa.repository.Query;
-import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
@@ -42,9 +38,5 @@ public interface JpaLoginRecordRepository extends JpaRepository<LoginRecord, Lon
     @Override
     long countByDeviceFingerprint(String deviceFingerprint);
 
-    @Override
-    @Modifying
-    @Transactional
-    @Query("UPDATE LoginRecord l SET l.phoneNumber = :newPhoneNumber WHERE l.userId = :userId AND l.phoneNumber = :oldPhoneNumber")
-    void updatePhoneNumber(@Param("userId") String userId, @Param("oldPhoneNumber") String oldPhoneNumber, @Param("newPhoneNumber") String newPhoneNumber);
+    // LoginRecord 实体没有 phoneNumber 字段，取消该方法
 }

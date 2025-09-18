@@ -91,4 +91,10 @@ public class NoteRepositoryImpl implements NoteRepository {
         // TODO: 实现检查displayId是否存在
         return jpaNoteRepository.existsByDisplayId(displayId);
     }
+
+    @Override
+    public void softDeleteByUserId(String userId) {
+        // TODO: 实现按用户ID批量软删除笔记
+        jpaNoteRepository.softDeleteByUserId(userId);
+    }
 }

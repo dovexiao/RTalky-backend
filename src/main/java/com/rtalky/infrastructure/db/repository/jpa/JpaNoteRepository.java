@@ -7,6 +7,10 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.Optional;
@@ -68,6 +72,14 @@ public interface JpaNoteRepository extends JpaRepository<Note, Long> {
     @Modifying
     @Query("UPDATE Note n SET n.deleted = true, n.updatedTime = CURRENT_TIMESTAMP WHERE n.noteId = :noteId")
     void deleteByNoteId(@Param("noteId") String noteId);
+
+    /**
+     * 按用户ID批量软删除笔记
+     */
+    @Modifying
+    @Transactional
+    @Query("UPDATE Note n SET n.deleted = true, n.updatedTime = CURRENT_TIMESTAMP WHERE n.userId = :userId AND n.deleted = false")
+    void softDeleteByUserId(@Param("userId") String userId);
 
     /**
      * 根据displayId查找笔记

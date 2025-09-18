@@ -54,6 +54,16 @@ public class DeviceFingerprintProperties {
          * 设备登录尝试限流配置
          */
         private OperationLimit loginAttemptDevice = new OperationLimit(20, 1440);
+
+        /**
+         * 手机号换绑操作限流配置
+         */
+        private OperationLimit phoneChange = new OperationLimit(3, 1440);
+
+        /**
+         * 设备换绑操作限流配置
+         */
+        private OperationLimit phoneChangeDevice = new OperationLimit(5, 1440);
     }
 
     @Data

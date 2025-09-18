@@ -1,6 +1,8 @@
 package com.rtalky.application.event;
 
 import com.rtalky.domain.event.UserDeletedEvent;
+import com.rtalky.domain.repository.NoteRepository;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.annotation.Async;
@@ -12,7 +14,10 @@ import org.springframework.stereotype.Component;
  */
 @Slf4j
 @Component
+@RequiredArgsConstructor
 public class UserDeletedEventHandler {
+
+    private final NoteRepository noteRepository;
 
     /**
      * 处理用户注销事件
@@ -25,41 +30,16 @@ public class UserDeletedEventHandler {
             log.info("开始处理用户注销事件: userId={}, phoneNumber={}, deletionId={}", 
                 event.getUserId(), event.getPhoneNumber(), event.getDeletionId());
 
-            // TODO: 清理用户相关的其他缓存
-            // 1. 清理用户信息缓存
-            // 2. 清理用户头像缓存
-            // 3. 清理用户相关的其他业务缓存
+            // 1) 批量软删除该用户的所有笔记（幂等）
+            noteRepository.softDeleteByUserId(event.getUserId());
+            log.info("已批量软删除用户笔记: userId={}", event.getUserId());
 
-            // TODO: 处理第三方绑定撤销
-            // 1. 撤销第三方平台授权（一键登录/社交登录）
-            // 2. 通知第三方平台回调（如有约定）
-            // 3. 清理第三方绑定记录
+            // 2) 预留：清理与笔记相关缓存/索引（当前项目未实现缓存/索引，保留占位）
+            // TODO: 清理笔记列表、计数等缓存键（按实际CacheService命名约定）
+            // TODO: 下线搜索/推荐索引中的该用户笔记
 
-            // TODO: 处理用户内容（UGC）
-            // 1. 用户生成内容处理策略（保留/匿名化/软删）
-            // 2. 清理或匿名化帖子、评论等
-            // 3. 处理文件/对象存储引用
-
-            // TODO: 处理关系数据
-            // 1. 解除关注关系
-            // 2. 处理群组成员关系
-            // 3. 清理黑名单、屏蔽关系
-            // 4. 处理其他关联表数据
-
-            // TODO: 风控与安全处理
-            // 1. 设置注销冷静期，防止同一手机号快速复注册
-            // 2. 更新风控黑名单
-            // 3. 清理设备指纹关联
-
-            // TODO: 定时任务与异步处理
-            // 1. 撤销该用户的定时任务
-            // 2. 清理延迟队列中的相关消息
-            // 3. 发布其他异步清理任务
-
-            // TODO: 通知与日志
-            // 1. 发送注销成功通知（如需要）
-            // 2. 记录详细的资源清理日志
-            // 3. 更新审计记录
+            // 3) 保留其他资源清理占位（原注释）
+            // TODO: 清理用户相关的其他缓存/第三方绑定/关系数据/风控/定时任务等
 
             log.info("用户注销事件处理完成: userId={}, phoneNumber={}, deletionId={}", 
                 event.getUserId(), event.getPhoneNumber(), event.getDeletionId());

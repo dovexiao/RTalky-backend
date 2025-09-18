@@ -216,6 +216,8 @@ public class DeviceFingerprintServiceImpl implements DeviceFingerprintService {
             case "SEND_SMS_PER_DEVICE" -> properties.getRateLimit().getSendSmsDevice();
             case "LOGIN_ATTEMPT" -> properties.getRateLimit().getLoginAttempt();
             case "LOGIN_ATTEMPT_PER_DEVICE" -> properties.getRateLimit().getLoginAttemptDevice();
+            case "PHONE_CHANGE" -> properties.getRateLimit().getPhoneChange();
+            case "PHONE_CHANGE_PER_DEVICE" -> properties.getRateLimit().getPhoneChangeDevice();
             default -> null;
         };
     }
@@ -227,6 +229,7 @@ public class DeviceFingerprintServiceImpl implements DeviceFingerprintService {
         return switch (operation) {
             case "SEND_SMS", "SEND_SMS_PER_DEVICE" -> "sms";
             case "LOGIN_ATTEMPT", "LOGIN_ATTEMPT_PER_DEVICE" -> "login";
+            case "PHONE_CHANGE", "PHONE_CHANGE_PER_DEVICE" -> "phone_change";
             default -> "unknown";
         };
     }

@@ -13,6 +13,9 @@ import com.rtalky.application.dto.AccountDeletionSmsRequest;
 import com.rtalky.application.dto.AccountDeletionRequest;
 import com.rtalky.application.dto.AccountDeletionResponse;
 import com.rtalky.application.dto.SmsSendResponse;
+import com.rtalky.application.dto.PhoneChangeSmsRequest;
+import com.rtalky.application.dto.PhoneChangeRequest;
+import com.rtalky.application.dto.PhoneChangeResponse;
 
 /**
  * 认证应用服务接口
@@ -122,4 +125,22 @@ public interface AuthenticationAppService {
      * @return 注销结果
      */
     AccountDeletionResponse submitDeletion(String sessionToken, AccountDeletionRequest request);
+
+    /**
+     * 发送换绑手机号短信验证码
+     *
+     * @param sessionToken 会话令牌
+     * @param request 换绑手机号短信发送请求
+     * @return 发送结果
+     */
+    SmsSendResponse sendPhoneChangeSmsCode(String sessionToken, PhoneChangeSmsRequest request);
+
+    /**
+     * 提交换绑手机号申请
+     *
+     * @param sessionToken 会话令牌
+     * @param request 换绑手机号请求
+     * @return 换绑结果
+     */
+    PhoneChangeResponse submitPhoneChange(String sessionToken, PhoneChangeRequest request);
 }

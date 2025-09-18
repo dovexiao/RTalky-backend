@@ -14,10 +14,14 @@ import com.rtalky.application.dto.PasswordResponse;
 import com.rtalky.application.dto.AccountDeletionSmsRequest;
 import com.rtalky.application.dto.AccountDeletionRequest;
 import com.rtalky.application.dto.AccountDeletionResponse;
+import com.rtalky.application.dto.PhoneChangeSmsRequest;
+import com.rtalky.application.dto.PhoneChangeRequest;
+import com.rtalky.application.dto.PhoneChangeResponse;
 import com.rtalky.application.exception.SmsSendException;
 import com.rtalky.application.exception.SmsLoginException;
 import com.rtalky.application.exception.PasswordLoginException;
 import com.rtalky.application.exception.SessionValidationException;
+import com.rtalky.application.exception.PhoneChangeException;
 import com.rtalky.application.service.AuthenticationAppService;
 import com.rtalky.interfaces.converter.AuthParameterConverter;
 import com.rtalky.interfaces.converter.DeviceInfoConverter;
@@ -1883,6 +1887,273 @@ public class AuthController {
             log.error("提交账号注销申请系统异常: error={}", e.getMessage(), e);
             return ResponseEntity.internalServerError()
                     .body(new AccountDeletionResponse(false, "系统异常，请稍后重试", java.time.LocalDateTime.now(), null));
+        }
+    }
+
+    /**
+     * 发送换绑手机号短信验证码
+     */
+    @PostMapping("/phone/change/sms-code")
+    @Operation(
+        summary = "发送换绑手机号短信验证码",
+        description = "向新手机号发送短信验证码，用于换绑手机号验证。需要用户已登录。"
+    )
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "200", description = "验证码发送成功",
+            content = @Content(schema = @Schema(implementation = SmsSendResponse.class),
+                examples = @ExampleObject(value = "{\"success\":true,\"message\":\"短信验证码发送成功\",\"codeDigits\":6,\"timestamp\":\"2024-01-01T12:00:00\"}"))),
+        @ApiResponse(responseCode = "400", description = "请求参数错误",
+            content = @Content(schema = @Schema(implementation = SmsSendResponse.class),
+                examples = @ExampleObject(value = "{\"success\":false,\"message\":\"新手机号与当前手机号相同\",\"codeDigits\":null,\"timestamp\":\"2024-01-01T12:00:00\"}"))),
+        @ApiResponse(responseCode = "401", description = "未授权",
+            content = @Content(schema = @Schema(implementation = SmsSendResponse.class),
+                examples = @ExampleObject(value = "{\"success\":false,\"message\":\"会话已过期，请重新登录\",\"codeDigits\":null,\"timestamp\":\"2024-01-01T12:00:00\"}"))),
+        @ApiResponse(responseCode = "403", description = "手机号被限制",
+            content = @Content(schema = @Schema(implementation = SmsSendResponse.class),
+                examples = @ExampleObject(value = "{\"success\":false,\"message\":\"该手机号被限制，请等待限制期结束后再试\",\"codeDigits\":null,\"timestamp\":\"2024-01-01T12:00:00\"}"))),
+        @ApiResponse(responseCode = "429", description = "请求过于频繁",
+            content = @Content(schema = @Schema(implementation = SmsSendResponse.class),
+                examples = @ExampleObject(value = "{\"success\":false,\"message\":\"操作受限，请稍后再试\",\"codeDigits\":null,\"timestamp\":\"2024-01-01T12:00:00\"}"))),
+        @ApiResponse(responseCode = "500", description = "系统异常",
+            content = @Content(schema = @Schema(implementation = SmsSendResponse.class),
+                examples = @ExampleObject(value = "{\"success\":false,\"message\":\"系统异常，请稍后重试\",\"codeDigits\":null,\"timestamp\":\"2024-01-01T12:00:00\"}")))
+    })
+    public ResponseEntity<SmsSendResponse> sendPhoneChangeSmsCode(
+        @RequestHeader(value = "Authorization", required = false) String authorization,
+        @Valid @RequestBody PhoneChangeSmsRequest request) {
+        try {
+            log.info("请求发送换绑手机号短信验证码: newPhoneNumber={}", request.getNewPhoneNumber());
+
+            // 检查Authorization头是否存在
+            if (authorization == null || authorization.trim().isEmpty()) {
+                log.warn("缺少Authorization头");
+                return ResponseEntity.badRequest()
+                        .body(new SmsSendResponse(false, "缺少Authorization头", java.time.LocalDateTime.now(), null));
+            }
+
+            String sessionToken = extractTokenFromHeader(authorization);
+            if (sessionToken == null) {
+                log.warn("Authorization头格式无效: {}", authorization);
+                return ResponseEntity.badRequest()
+                        .body(new SmsSendResponse(false, "Authorization头格式无效", java.time.LocalDateTime.now(), null));
+            }
+
+            // 调用应用服务
+            SmsSendResponse response = authenticationAppService.sendPhoneChangeSmsCode(sessionToken, request);
+
+            if (response.isSuccess()) {
+                return ResponseEntity.ok(response);
+            } else {
+                // 根据错误消息返回不同的HTTP状态码
+                if (response.getMessage().contains("相同") || response.getMessage().contains("已被使用")) {
+                    return ResponseEntity.badRequest().body(response);
+                } else if (response.getMessage().contains("会话") || response.getMessage().contains("登录")) {
+                    return ResponseEntity.status(401).body(response);
+                } else if (response.getMessage().contains("被限制")) {
+                    return ResponseEntity.status(403).body(response);
+                } else if (response.getMessage().contains("操作受限")) {
+                    return ResponseEntity.status(429).body(response);
+                } else {
+                    return ResponseEntity.internalServerError().body(response);
+                }
+            }
+
+        } catch (SessionValidationException e) {
+            log.warn("发送换绑手机号短信验证码会话验证异常: errorCode={}, message={}",
+                e.getErrorCode().getCode(), e.getMessage());
+
+            // 根据错误码返回不同的HTTP状态码
+            if (e.getErrorCode() == SessionValidationException.SessionValidationErrorCode.TOKEN_REQUIRED ||
+                e.getErrorCode() == SessionValidationException.SessionValidationErrorCode.INVALID_TOKEN_FORMAT) {
+                // 客户端错误，返回400
+                return ResponseEntity.badRequest()
+                        .body(new SmsSendResponse(false, e.getMessage(), java.time.LocalDateTime.now(), null));
+            } else if (e.getErrorCode() == SessionValidationException.SessionValidationErrorCode.TOKEN_NOT_FOUND ||
+                       e.getErrorCode() == SessionValidationException.SessionValidationErrorCode.TOKEN_EXPIRED ||
+                       e.getErrorCode() == SessionValidationException.SessionValidationErrorCode.TOKEN_INVALID ||
+                       e.getErrorCode() == SessionValidationException.SessionValidationErrorCode.USER_NOT_FOUND ||
+                       e.getErrorCode() == SessionValidationException.SessionValidationErrorCode.USER_DISABLED ||
+                       e.getErrorCode() == SessionValidationException.SessionValidationErrorCode.USER_LOCKED) {
+                // 认证失败，返回401
+                return ResponseEntity.status(401)
+                        .body(new SmsSendResponse(false, e.getMessage(), java.time.LocalDateTime.now(), null));
+            } else {
+                // 服务器错误，返回500
+                return ResponseEntity.internalServerError()
+                        .body(new SmsSendResponse(false, e.getMessage(), java.time.LocalDateTime.now(), null));
+            }
+        } catch (PhoneChangeException e) {
+            log.warn("发送换绑手机号短信验证码业务异常: newPhoneNumber={}, errorCode={}, message={}",
+                request.getNewPhoneNumber(), e.getErrorCode().getCode(), e.getMessage());
+
+            // 根据错误码返回不同的HTTP状态码
+            if (e.getErrorCode() == PhoneChangeException.PhoneChangeErrorCode.PHONE_SAME ||
+                e.getErrorCode() == PhoneChangeException.PhoneChangeErrorCode.PHONE_ALREADY_EXISTS) {
+                // 客户端错误，返回400
+                return ResponseEntity.badRequest()
+                        .body(new SmsSendResponse(false, e.getMessage(), java.time.LocalDateTime.now(), null));
+            } else if (e.getErrorCode() == PhoneChangeException.PhoneChangeErrorCode.PHONE_RESTRICTED) {
+                // 手机号被限制，返回403
+                return ResponseEntity.status(403)
+                        .body(new SmsSendResponse(false, e.getMessage(), java.time.LocalDateTime.now(), null));
+            } else if (e.getErrorCode() == PhoneChangeException.PhoneChangeErrorCode.DEVICE_LIMITED) {
+                // 请求过于频繁，返回429
+                return ResponseEntity.status(429)
+                        .body(new SmsSendResponse(false, e.getMessage(), java.time.LocalDateTime.now(), null));
+            } else {
+                // 服务器错误，返回500
+                return ResponseEntity.internalServerError()
+                        .body(new SmsSendResponse(false, e.getMessage(), java.time.LocalDateTime.now(), null));
+            }
+        } catch (IllegalArgumentException e) {
+            log.warn("发送换绑手机号短信验证码参数异常: message={}", e.getMessage());
+            return ResponseEntity.badRequest()
+                    .body(new SmsSendResponse(false, e.getMessage(), java.time.LocalDateTime.now(), null));
+        } catch (Exception e) {
+            log.error("发送换绑手机号短信验证码系统异常: newPhoneNumber={}, error={}", 
+                request.getNewPhoneNumber(), e.getMessage(), e);
+            return ResponseEntity.internalServerError()
+                    .body(new SmsSendResponse(false, "系统异常，请稍后重试", java.time.LocalDateTime.now(), null));
+        }
+    }
+
+    /**
+     * 提交换绑手机号申请
+     */
+    @PostMapping("/phone/change/submit")
+    @Operation(
+        summary = "提交换绑手机号申请",
+        description = "提交换绑手机号申请，需要提供短信验证码进行验证。换绑成功后手机号将被更新。"
+    )
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "200", description = "换绑成功",
+            content = @Content(schema = @Schema(implementation = PhoneChangeResponse.class),
+                examples = @ExampleObject(value = "{\"success\":true,\"message\":\"换绑成功\",\"timestamp\":\"2024-01-01T12:00:00\",\"newPhoneNumber\":\"13900139000\"}"))),
+        @ApiResponse(responseCode = "400", description = "请求参数错误",
+            content = @Content(schema = @Schema(implementation = PhoneChangeResponse.class),
+                examples = @ExampleObject(value = "{\"success\":false,\"message\":\"用户不存在\",\"timestamp\":\"2024-01-01T12:00:00\",\"newPhoneNumber\":null}"))),
+        @ApiResponse(responseCode = "401", description = "认证失败",
+            content = @Content(schema = @Schema(implementation = PhoneChangeResponse.class),
+                examples = @ExampleObject(value = "{\"success\":false,\"message\":\"会话已过期，请重新登录\",\"timestamp\":\"2024-01-01T12:00:00\",\"newPhoneNumber\":null}"))),
+        @ApiResponse(responseCode = "403", description = "手机号被限制",
+            content = @Content(schema = @Schema(implementation = PhoneChangeResponse.class),
+                examples = @ExampleObject(value = "{\"success\":false,\"message\":\"该手机号被限制，请等待限制期结束后再试\",\"timestamp\":\"2024-01-01T12:00:00\",\"newPhoneNumber\":null}"))),
+        @ApiResponse(responseCode = "422", description = "业务逻辑错误",
+            content = @Content(schema = @Schema(implementation = PhoneChangeResponse.class),
+                examples = @ExampleObject(value = "{\"success\":false,\"message\":\"短信验证码错误或已过期\",\"timestamp\":\"2024-01-01T12:00:00\",\"newPhoneNumber\":null}"))),
+        @ApiResponse(responseCode = "429", description = "请求过于频繁",
+            content = @Content(schema = @Schema(implementation = PhoneChangeResponse.class),
+                examples = @ExampleObject(value = "{\"success\":false,\"message\":\"设备操作受限，请稍后再试\",\"timestamp\":\"2024-01-01T12:00:00\",\"newPhoneNumber\":null}"))),
+        @ApiResponse(responseCode = "500", description = "系统异常",
+            content = @Content(schema = @Schema(implementation = PhoneChangeResponse.class),
+                examples = @ExampleObject(value = "{\"success\":false,\"message\":\"系统异常，请稍后重试\",\"timestamp\":\"2024-01-01T12:00:00\",\"newPhoneNumber\":null}")))
+    })
+    public ResponseEntity<PhoneChangeResponse> submitPhoneChange(
+        @RequestHeader(value = "Authorization", required = false) String authorization,
+        @Valid @RequestBody PhoneChangeRequest request) {
+        try {
+            log.info("请求提交换绑手机号申请");
+
+            // 检查Authorization头是否存在
+            if (authorization == null || authorization.trim().isEmpty()) {
+                log.warn("缺少Authorization头");
+                return ResponseEntity.badRequest()
+                        .body(new PhoneChangeResponse(false, "缺少Authorization头", java.time.LocalDateTime.now(), null));
+            }
+
+            String sessionToken = extractTokenFromHeader(authorization);
+            if (sessionToken == null) {
+                log.warn("Authorization头格式无效: {}", authorization);
+                return ResponseEntity.badRequest()
+                        .body(new PhoneChangeResponse(false, "Authorization头格式无效", java.time.LocalDateTime.now(), null));
+            }
+
+            // 调用应用服务
+            PhoneChangeResponse response = authenticationAppService.submitPhoneChange(sessionToken, request);
+
+            if (response.isSuccess()) {
+                return ResponseEntity.ok(response);
+            } else {
+                // 根据错误消息返回不同的HTTP状态码
+                if (response.getMessage().contains("用户不存在")) {
+                    return ResponseEntity.badRequest().body(response);
+                } else if (response.getMessage().contains("会话") || response.getMessage().contains("登录")) {
+                    return ResponseEntity.status(401).body(response);
+                } else if (response.getMessage().contains("被限制")) {
+                    return ResponseEntity.status(403).body(response);
+                } else if (response.getMessage().contains("验证码") || response.getMessage().contains("会话已过期")) {
+                    return ResponseEntity.status(422).body(response);
+                } else if (response.getMessage().contains("操作受限")) {
+                    return ResponseEntity.status(429).body(response);
+                } else {
+                    return ResponseEntity.internalServerError().body(response);
+                }
+            }
+
+        } catch (SessionValidationException e) {
+            log.warn("提交换绑手机号申请会话验证异常: errorCode={}, message={}",
+                e.getErrorCode().getCode(), e.getMessage());
+
+            // 根据错误码返回不同的HTTP状态码
+            if (e.getErrorCode() == SessionValidationException.SessionValidationErrorCode.TOKEN_REQUIRED ||
+                e.getErrorCode() == SessionValidationException.SessionValidationErrorCode.INVALID_TOKEN_FORMAT) {
+                // 客户端错误，返回400
+                return ResponseEntity.badRequest()
+                        .body(new PhoneChangeResponse(false, e.getMessage(), java.time.LocalDateTime.now(), null));
+            } else if (e.getErrorCode() == SessionValidationException.SessionValidationErrorCode.TOKEN_NOT_FOUND ||
+                       e.getErrorCode() == SessionValidationException.SessionValidationErrorCode.TOKEN_EXPIRED ||
+                       e.getErrorCode() == SessionValidationException.SessionValidationErrorCode.TOKEN_INVALID ||
+                       e.getErrorCode() == SessionValidationException.SessionValidationErrorCode.USER_NOT_FOUND ||
+                       e.getErrorCode() == SessionValidationException.SessionValidationErrorCode.USER_DISABLED ||
+                       e.getErrorCode() == SessionValidationException.SessionValidationErrorCode.USER_LOCKED) {
+                // 认证失败，返回401
+                return ResponseEntity.status(401)
+                        .body(new PhoneChangeResponse(false, e.getMessage(), java.time.LocalDateTime.now(), null));
+            } else {
+                // 服务器错误，返回500
+                return ResponseEntity.internalServerError()
+                        .body(new PhoneChangeResponse(false, e.getMessage(), java.time.LocalDateTime.now(), null));
+            }
+        } catch (PhoneChangeException e) {
+            log.warn("提交换绑手机号申请业务异常: errorCode={}, message={}",
+                e.getErrorCode().getCode(), e.getMessage());
+
+            // 根据错误码返回不同的HTTP状态码
+            if (e.getErrorCode() == PhoneChangeException.PhoneChangeErrorCode.USER_NOT_FOUND) {
+                // 客户端错误，返回400
+                return ResponseEntity.badRequest()
+                        .body(new PhoneChangeResponse(false, e.getMessage(), java.time.LocalDateTime.now(), null));
+            } else if (e.getErrorCode() == PhoneChangeException.PhoneChangeErrorCode.SESSION_EXPIRED) {
+                // 认证失败，返回401
+                return ResponseEntity.status(401)
+                        .body(new PhoneChangeResponse(false, e.getMessage(), java.time.LocalDateTime.now(), null));
+            } else if (e.getErrorCode() == PhoneChangeException.PhoneChangeErrorCode.PHONE_RESTRICTED) {
+                // 手机号被限制，返回403
+                return ResponseEntity.status(403)
+                        .body(new PhoneChangeResponse(false, e.getMessage(), java.time.LocalDateTime.now(), null));
+            } else if (e.getErrorCode() == PhoneChangeException.PhoneChangeErrorCode.SMS_CODE_INVALID ||
+                       e.getErrorCode() == PhoneChangeException.PhoneChangeErrorCode.SMS_CODE_EXPIRED ||
+                       e.getErrorCode() == PhoneChangeException.PhoneChangeErrorCode.SMS_CODE_NOT_FOUND) {
+                // 业务逻辑错误，返回422
+                return ResponseEntity.status(422)
+                        .body(new PhoneChangeResponse(false, e.getMessage(), java.time.LocalDateTime.now(), null));
+            } else if (e.getErrorCode() == PhoneChangeException.PhoneChangeErrorCode.DEVICE_LIMITED) {
+                // 请求过于频繁，返回429
+                return ResponseEntity.status(429)
+                        .body(new PhoneChangeResponse(false, e.getMessage(), java.time.LocalDateTime.now(), null));
+            } else {
+                // 服务器错误，返回500
+                return ResponseEntity.internalServerError()
+                        .body(new PhoneChangeResponse(false, e.getMessage(), java.time.LocalDateTime.now(), null));
+            }
+        } catch (IllegalArgumentException e) {
+            log.warn("提交换绑手机号申请参数异常: message={}", e.getMessage());
+            return ResponseEntity.badRequest()
+                    .body(new PhoneChangeResponse(false, e.getMessage(), java.time.LocalDateTime.now(), null));
+        } catch (Exception e) {
+            log.error("提交换绑手机号申请系统异常: error={}", e.getMessage(), e);
+            return ResponseEntity.internalServerError()
+                    .body(new PhoneChangeResponse(false, "系统异常，请稍后重试", java.time.LocalDateTime.now(), null));
         }
     }
 }

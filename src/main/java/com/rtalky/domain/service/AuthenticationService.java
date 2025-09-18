@@ -146,4 +146,52 @@ public interface AuthenticationService {
      * @return 验证是否成功
      */
     boolean verifyDeletionSmsCode(String phoneNumber, String smsCode, String deviceFingerprint);
+
+    /**
+     * 发送换绑手机号短信验证码
+     *
+     * @param userId 用户ID
+     * @param newPhoneNumber 新手机号
+     * @param deviceFingerprint 设备指纹
+     * @return 发送是否成功
+     */
+    boolean sendPhoneChangeSmsCode(String userId, String newPhoneNumber, String deviceFingerprint);
+
+    /**
+     * 验证换绑手机号短信验证码
+     *
+     * @param newPhoneNumber 新手机号
+     * @param smsCode 短信验证码
+     * @param deviceFingerprint 设备指纹
+     * @return 验证是否成功
+     */
+    boolean verifyPhoneChangeSmsCode(String newPhoneNumber, String smsCode, String deviceFingerprint);
+
+    /**
+     * 缓存换绑手机号的新手机号
+     *
+     * @param userId 用户ID
+     * @param newPhoneNumber 新手机号
+     * @param deviceFingerprint 设备指纹
+     * @return 缓存是否成功
+     */
+    boolean cacheNewPhoneForChange(String userId, String newPhoneNumber, String deviceFingerprint);
+
+    /**
+     * 获取缓存的换绑手机号
+     *
+     * @param userId 用户ID
+     * @param deviceFingerprint 设备指纹
+     * @return 缓存的新手机号，如果不存在返回null
+     */
+    String getCachedNewPhoneForChange(String userId, String deviceFingerprint);
+
+    /**
+     * 清除缓存的换绑手机号
+     *
+     * @param userId 用户ID
+     * @param deviceFingerprint 设备指纹
+     * @return 清除是否成功
+     */
+    boolean clearCachedNewPhoneForChange(String userId, String deviceFingerprint);
 }

@@ -564,4 +564,109 @@ public class AuthenticationServiceImpl implements AuthenticationService {
             return false;
         }
     }
+
+    @Override
+    public boolean sendPhoneChangeSmsCode(String userId, String newPhoneNumber, String deviceFingerprint) {
+        try {
+            String smsCode = generateRandomCode();
+            String cacheKey = "sms:code:phone_change:" + newPhoneNumber + ":" + deviceFingerprint;
+            cacheService.set(cacheKey, smsCode, smsCodeExpireMinutes, TimeUnit.MINUTES);
+            
+            boolean result = smsClient.sendVerificationCode(newPhoneNumber, smsCode);
+            if (result) {
+                eventPublisher.publishEvent(new SmsCodeSentEvent(newPhoneNumber, LocalDateTime.now(), deviceFingerprint));
+                log.info("换绑手机号短信验证码发送成功: userId={}, newPhoneNumber={}, deviceFingerprint={}", 
+                    userId, newPhoneNumber, deviceFingerprint);
+            } else {
+                log.error("换绑手机号短信验证码发送失败: userId={}, newPhoneNumber={}, deviceFingerprint={}", 
+                    userId, newPhoneNumber, deviceFingerprint);
+            }
+            return result;
+        } catch (Exception e) {
+            log.error("换绑手机号短信验证码发送异常: userId={}, newPhoneNumber={}, deviceFingerprint={}, error={}", 
+                userId, newPhoneNumber, deviceFingerprint, e.getMessage(), e);
+            return false;
+        }
+    }
+
+    @Override
+    public boolean verifyPhoneChangeSmsCode(String newPhoneNumber, String smsCode, String deviceFingerprint) {
+        try {
+            String cacheKey = "sms:code:phone_change:" + newPhoneNumber + ":" + deviceFingerprint;
+            String cachedCode = cacheService.get(cacheKey, String.class);
+            
+            if (cachedCode == null) {
+                log.warn("换绑手机号短信验证码不存在或已过期: newPhoneNumber={}, deviceFingerprint={}", 
+                    newPhoneNumber, deviceFingerprint);
+                return false;
+            }
+            
+            if (!cachedCode.equals(smsCode)) {
+                log.warn("换绑手机号短信验证码错误: newPhoneNumber={}, deviceFingerprint={}, expected={}, actual={}", 
+                    newPhoneNumber, deviceFingerprint, cachedCode, smsCode);
+                return false;
+            }
+            
+            // 验证成功后清除验证码
+            cacheService.delete(cacheKey);
+            log.info("换绑手机号短信验证码验证成功: newPhoneNumber={}, deviceFingerprint={}", 
+                newPhoneNumber, deviceFingerprint);
+            return true;
+            
+        } catch (Exception e) {
+            log.error("换绑手机号短信验证码验证异常: newPhoneNumber={}, deviceFingerprint={}, error={}", 
+                newPhoneNumber, deviceFingerprint, e.getMessage(), e);
+            return false;
+        }
+    }
+
+    @Override
+    public boolean cacheNewPhoneForChange(String userId, String newPhoneNumber, String deviceFingerprint) {
+        try {
+            String cacheKey = "phone_change:new_phone:" + userId + ":" + deviceFingerprint;
+            // 缓存时间为验证码过期时间 + 5分钟
+            int cacheMinutes = smsCodeExpireMinutes + 5;
+            cacheService.set(cacheKey, newPhoneNumber, cacheMinutes, TimeUnit.MINUTES);
+            log.info("换绑手机号缓存成功: userId={}, newPhoneNumber={}, deviceFingerprint={}, expireMinutes={}", 
+                userId, newPhoneNumber, deviceFingerprint, cacheMinutes);
+            return true;
+        } catch (Exception e) {
+            log.error("换绑手机号缓存异常: userId={}, newPhoneNumber={}, deviceFingerprint={}, error={}", 
+                userId, newPhoneNumber, deviceFingerprint, e.getMessage(), e);
+            return false;
+        }
+    }
+
+    @Override
+    public String getCachedNewPhoneForChange(String userId, String deviceFingerprint) {
+        try {
+            String cacheKey = "phone_change:new_phone:" + userId + ":" + deviceFingerprint;
+            String cachedPhoneNumber = cacheService.get(cacheKey, String.class);
+            if (cachedPhoneNumber != null) {
+                log.info("获取换绑手机号缓存成功: userId={}, deviceFingerprint={}, newPhoneNumber={}", 
+                    userId, deviceFingerprint, cachedPhoneNumber);
+            } else {
+                log.warn("换绑手机号缓存不存在或已过期: userId={}, deviceFingerprint={}", userId, deviceFingerprint);
+            }
+            return cachedPhoneNumber;
+        } catch (Exception e) {
+            log.error("获取换绑手机号缓存异常: userId={}, deviceFingerprint={}, error={}", 
+                userId, deviceFingerprint, e.getMessage(), e);
+            return null;
+        }
+    }
+
+    @Override
+    public boolean clearCachedNewPhoneForChange(String userId, String deviceFingerprint) {
+        try {
+            String cacheKey = "phone_change:new_phone:" + userId + ":" + deviceFingerprint;
+            cacheService.delete(cacheKey);
+            log.info("清除换绑手机号缓存成功: userId={}, deviceFingerprint={}", userId, deviceFingerprint);
+            return true;
+        } catch (Exception e) {
+            log.error("清除换绑手机号缓存异常: userId={}, deviceFingerprint={}, error={}", 
+                userId, deviceFingerprint, e.getMessage(), e);
+            return false;
+        }
+    }
 }

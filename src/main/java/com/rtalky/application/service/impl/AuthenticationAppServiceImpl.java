@@ -13,16 +13,21 @@ import com.rtalky.application.dto.AccountDeletionSmsRequest;
 import com.rtalky.application.dto.AccountDeletionRequest;
 import com.rtalky.application.dto.AccountDeletionResponse;
 import com.rtalky.application.dto.SmsSendResponse;
+import com.rtalky.application.dto.PhoneChangeSmsRequest;
+import com.rtalky.application.dto.PhoneChangeRequest;
+import com.rtalky.application.dto.PhoneChangeResponse;
 import com.rtalky.application.util.PasswordValidator;
 import com.rtalky.application.exception.SmsSendException;
 import com.rtalky.application.exception.SmsLoginException;
 import com.rtalky.application.exception.PasswordLoginException;
 import com.rtalky.application.exception.SessionValidationException;
+import com.rtalky.application.exception.PhoneChangeException;
 import com.rtalky.application.service.AuthenticationAppService;
 import com.rtalky.application.service.PhoneRestrictionService;
 import com.rtalky.domain.event.UserLoggedInEvent;
 import com.rtalky.domain.event.UserRegisteredEvent;
 import com.rtalky.domain.event.UserDeletedEvent;
+import com.rtalky.domain.event.PhoneChangedEvent;
 import com.rtalky.domain.model.AuthMethod;
 import com.rtalky.domain.model.UserStatus;
 import com.rtalky.domain.model.LoginRecord;
@@ -1042,6 +1047,238 @@ public class AuthenticationAppServiceImpl implements AuthenticationAppService {
         } catch (Exception e) {
             log.error("提交账号注销申请系统异常: error={}", e.getMessage(), e);
             throw new RuntimeException("系统异常，请稍后重试");
+        }
+    }
+
+    @Override
+    public SmsSendResponse sendPhoneChangeSmsCode(String sessionToken, PhoneChangeSmsRequest request) {
+        try {
+            log.info("请求发送换绑手机号短信验证码: newPhoneNumber={}", request.getNewPhoneNumber());
+
+            // 1. 验证会话令牌并获取用户ID
+            String userId = validateSession(sessionToken);
+
+            // 2. 获取用户信息
+            Optional<User> userOptional = userRepository.findByUserId(userId);
+            if (userOptional.isEmpty()) {
+                log.warn("发送换绑手机号短信验证码失败: 用户不存在 - userId={}", userId);
+                throw new IllegalArgumentException("用户不存在");
+            }
+
+            User user = userOptional.get();
+
+            // 3. 业务规则验证
+            if (request.getNewPhoneNumber().equals(user.getPhoneNumber())) {
+                throw new PhoneChangeException(PhoneChangeException.PhoneChangeErrorCode.PHONE_SAME,
+                    "新手机号与当前手机号相同");
+            }
+
+            // 4. 检查新手机号是否已被其他用户使用
+            Optional<User> existingUser = userRepository.findByPhoneNumber(request.getNewPhoneNumber());
+            if (existingUser.isPresent()) {
+                throw new PhoneChangeException(PhoneChangeException.PhoneChangeErrorCode.PHONE_ALREADY_EXISTS,
+                    "该手机号已被其他用户使用");
+            }
+
+            // 5. 检查新手机号是否被限制
+            if (phoneRestrictionService.isPhoneNumberRestricted(request.getNewPhoneNumber())) {
+                throw new PhoneChangeException(PhoneChangeException.PhoneChangeErrorCode.PHONE_RESTRICTED,
+                    "该手机号被限制，请等待限制期结束后再试");
+            }
+
+            // 6. 生成设备指纹
+            String deviceFingerprint = deviceFingerprintService.generateDeviceFingerprint(standardizeDeviceInfo(request.getDeviceInfo()));
+
+            // 7. 检查设备限制
+            if (deviceFingerprintService.isDeviceLimited(deviceFingerprint, request.getNewPhoneNumber(), "SEND_SMS")) {
+                throw new PhoneChangeException(PhoneChangeException.PhoneChangeErrorCode.DEVICE_LIMITED,
+                    "设备或手机号操作受限，请稍后再试");
+            }
+
+            // 8. 缓存新手机号
+            authenticationService.cacheNewPhoneForChange(userId, request.getNewPhoneNumber(), deviceFingerprint);
+
+            // 9. 发送短信验证码
+            boolean sendResult = authenticationService.sendPhoneChangeSmsCode(userId, request.getNewPhoneNumber(), deviceFingerprint);
+
+            if (sendResult) {
+                // 10. 记录设备操作
+                deviceFingerprintService.recordDeviceOperation(deviceFingerprint, request.getNewPhoneNumber(), "SEND_SMS");
+                log.info("换绑手机号短信验证码发送成功: userId={}, newPhoneNumber={}", userId, request.getNewPhoneNumber());
+                return new SmsSendResponse(true, "短信验证码发送成功", LocalDateTime.now(), 6);
+            } else {
+                log.error("换绑手机号短信验证码发送失败: userId={}, newPhoneNumber={}", userId, request.getNewPhoneNumber());
+                return new SmsSendResponse(false, "短信验证码发送失败，请稍后重试", LocalDateTime.now(), null);
+            }
+
+        } catch (SessionValidationException e) {
+            log.warn("发送换绑手机号短信验证码会话验证异常: errorCode={}, message={}",
+                e.getErrorCode().getCode(), e.getMessage());
+            throw e;
+        } catch (PhoneChangeException e) {
+            log.warn("发送换绑手机号短信验证码业务异常: newPhoneNumber={}, errorCode={}, message={}",
+                request.getNewPhoneNumber(), e.getErrorCode().getCode(), e.getMessage());
+            throw e;
+        } catch (IllegalArgumentException e) {
+            log.warn("发送换绑手机号短信验证码参数异常: message={}", e.getMessage());
+            throw e;
+        } catch (Exception e) {
+            log.error("发送换绑手机号短信验证码系统异常: newPhoneNumber={}, error={}",
+                request.getNewPhoneNumber(), e.getMessage(), e);
+            throw new PhoneChangeException(PhoneChangeException.PhoneChangeErrorCode.SYSTEM_ERROR, "系统异常，请稍后重试");
+        }
+    }
+
+    @Override
+    @Transactional
+    public PhoneChangeResponse submitPhoneChange(String sessionToken, PhoneChangeRequest request) {
+        try {
+            log.info("请求提交换绑手机号申请");
+
+            // 1. 验证会话令牌并获取用户ID
+            String userId = validateSession(sessionToken);
+
+            // 2. 获取用户信息
+            Optional<User> userOptional = userRepository.findByUserId(userId);
+            if (userOptional.isEmpty()) {
+                log.warn("提交换绑手机号申请失败: 用户不存在 - userId={}", userId);
+                throw new IllegalArgumentException("用户不存在");
+            }
+
+            User user = userOptional.get();
+
+            // 3. 生成设备指纹
+            String deviceFingerprint = deviceFingerprintService.generateDeviceFingerprint(standardizeDeviceInfo(request.getDeviceInfo()));
+
+            // 4. 检查设备限制
+            if (deviceFingerprintService.isDeviceLimited(deviceFingerprint, user.getPhoneNumber(), "PHONE_CHANGE")) {
+                throw new PhoneChangeException(PhoneChangeException.PhoneChangeErrorCode.DEVICE_LIMITED,
+                    "设备操作受限，请稍后再试");
+            }
+
+            // 5. 获取缓存的新手机号
+            String newPhoneNumber = authenticationService.getCachedNewPhoneForChange(userId, deviceFingerprint);
+            if (newPhoneNumber == null) {
+                throw new PhoneChangeException(PhoneChangeException.PhoneChangeErrorCode.SMS_CODE_EXPIRED,
+                    "换绑会话已过期，请重新开始");
+            }
+
+            // 6. 验证短信验证码
+            boolean smsValid = authenticationService.verifyPhoneChangeSmsCode(newPhoneNumber, request.getSmsCode(), deviceFingerprint);
+            if (!smsValid) {
+                throw new PhoneChangeException(PhoneChangeException.PhoneChangeErrorCode.SMS_CODE_INVALID,
+                    "短信验证码错误或已过期");
+            }
+
+            // 7. 再次检查新手机号是否已被其他用户使用（双重保险）
+            Optional<User> existingUser = userRepository.findByPhoneNumber(newPhoneNumber);
+            if (existingUser.isPresent() && !existingUser.get().getUserId().equals(userId)) {
+                throw new PhoneChangeException(PhoneChangeException.PhoneChangeErrorCode.PHONE_ALREADY_EXISTS,
+                    "该手机号已被其他用户使用");
+            }
+
+            // 8. 再次检查新手机号是否被限制
+            if (phoneRestrictionService.isPhoneNumberRestricted(newPhoneNumber)) {
+                throw new PhoneChangeException(PhoneChangeException.PhoneChangeErrorCode.PHONE_RESTRICTED,
+                    "该手机号被限制，请等待限制期结束后再试");
+            }
+
+            // 9. 执行换绑操作
+            String oldPhoneNumber = user.getPhoneNumber();
+            user.setPhoneNumber(newPhoneNumber);
+            userRepository.save(user);
+
+            // 10. 更新登录记录
+            loginRecordRepository.updatePhoneNumber(userId, oldPhoneNumber, newPhoneNumber);
+
+            // 11. 更新会话信息
+            updateSessionPhoneNumber(sessionToken, newPhoneNumber);
+
+            // 12. 清理缓存
+            authenticationService.clearCachedNewPhoneForChange(userId, deviceFingerprint);
+
+            // 13. 清理旧手机号相关缓存
+            clearOldPhoneCaches(oldPhoneNumber, deviceFingerprint);
+
+            // 14. 发布换绑成功事件
+            eventPublisher.publishEvent(new PhoneChangedEvent(this, userId, oldPhoneNumber, newPhoneNumber, LocalDateTime.now(), deviceFingerprint));
+
+            // 15. 记录操作日志
+            log.info("手机号换绑成功: userId={}, oldPhone={}, newPhone={}", userId, oldPhoneNumber, newPhoneNumber);
+
+            return new PhoneChangeResponse(true, "换绑成功", LocalDateTime.now(), newPhoneNumber);
+
+        } catch (SessionValidationException e) {
+            log.warn("提交换绑手机号申请会话验证异常: errorCode={}, message={}",
+                e.getErrorCode().getCode(), e.getMessage());
+            throw e;
+        } catch (PhoneChangeException e) {
+            log.warn("提交换绑手机号申请业务异常: errorCode={}, message={}",
+                e.getErrorCode().getCode(), e.getMessage());
+            throw e;
+        } catch (IllegalArgumentException e) {
+            log.warn("提交换绑手机号申请参数异常: message={}", e.getMessage());
+            throw e;
+        } catch (Exception e) {
+            log.error("提交换绑手机号申请系统异常: error={}", e.getMessage(), e);
+            throw new PhoneChangeException(PhoneChangeException.PhoneChangeErrorCode.SYSTEM_ERROR, "系统异常，请稍后重试");
+        } finally {
+            // 16. 记录设备操作（无论成功与否）
+            try {
+                String deviceFingerprint = deviceFingerprintService.generateDeviceFingerprint(standardizeDeviceInfo(request.getDeviceInfo()));
+                deviceFingerprintService.recordDeviceOperation(deviceFingerprint, null, "PHONE_CHANGE");
+            } catch (Exception e) {
+                log.warn("记录换绑设备操作失败: error={}", e.getMessage());
+            }
+        }
+    }
+
+    /**
+     * 更新会话中的手机号
+     */
+    private void updateSessionPhoneNumber(String sessionToken, String newPhoneNumber) {
+        try {
+            String sessionKey = "session:" + sessionToken;
+            String sessionData = cacheService.get(sessionKey, String.class);
+            if (sessionData != null) {
+                // 这里需要解析和更新会话数据中的手机号
+                // 具体实现取决于会话数据的格式
+                log.debug("更新会话手机号: sessionKey={}, newPhoneNumber={}", sessionKey, newPhoneNumber);
+            }
+        } catch (Exception e) {
+            log.warn("更新会话手机号失败: sessionToken={}, newPhoneNumber={}, error={}", 
+                sessionToken, newPhoneNumber, e.getMessage());
+        }
+    }
+
+    /**
+     * 清理旧手机号相关缓存
+     */
+    private void clearOldPhoneCaches(String oldPhoneNumber, String deviceFingerprint) {
+        try {
+            // 清理验证码缓存
+            String smsCodeKey = "sms:code:" + oldPhoneNumber + ":" + deviceFingerprint;
+            cacheService.delete(smsCodeKey);
+            
+            // 清理密码缓存
+            String passwordKey = "password:setup:" + oldPhoneNumber + ":" + deviceFingerprint;
+            cacheService.delete(passwordKey);
+            
+            // 清理计数键
+            String phoneSmsKey = "opcount:sms:phone:" + oldPhoneNumber;
+            String phoneLoginKey = "opcount:login:phone:" + oldPhoneNumber;
+            cacheService.delete(phoneSmsKey);
+            cacheService.delete(phoneLoginKey);
+            
+            // 清理限制键
+            String phoneLoginLimitKey = "limit:login:phone:" + oldPhoneNumber;
+            String phoneSmsLimitKey = "limit:sms:phone:" + oldPhoneNumber;
+            cacheService.delete(phoneLoginLimitKey);
+            cacheService.delete(phoneSmsLimitKey);
+            
+            log.debug("清理旧手机号缓存完成: oldPhoneNumber={}", oldPhoneNumber);
+        } catch (Exception e) {
+            log.warn("清理旧手机号缓存失败: oldPhoneNumber={}, error={}", oldPhoneNumber, e.getMessage());
         }
     }
 }

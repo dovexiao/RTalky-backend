@@ -114,4 +114,10 @@ public interface NoteRepository {
      * @return 笔记分页列表
      */
     Page<Note> findByUserIdAndContentContainingAndDeletedFalse(String userId, String content, Pageable pageable);
+
+    /**
+     * 按用户ID批量软删除笔记
+     * @param userId 用户ID
+     */
+    void softDeleteByUserId(String userId);
 }

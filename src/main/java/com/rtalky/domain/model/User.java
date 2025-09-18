@@ -114,6 +114,13 @@ public class User {
     private String bio;
 
     /**
+     * 主题偏好
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "theme", nullable = false)
+    private ThemePreference theme = ThemePreference.SYSTEM;
+
+    /**
      * 是否注销
      */
     @Column(name = "deleted", nullable = false)

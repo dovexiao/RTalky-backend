@@ -35,6 +35,7 @@ public class ResponseBuilder {
         profile.setNickname(user.getNickname());
         profile.setAvatar(user.getAvatar());
         profile.setBio(user.getBio());
+        profile.setTheme(user.getTheme() != null ? user.getTheme().name() : "SYSTEM");
         response.setUserProfile(profile);
 
         return response;
@@ -116,7 +117,9 @@ public class ResponseBuilder {
             user.getUserId(),
             user.getNickname(),
             user.getBio(),
-            user.getAvatar()
+            user.getAvatar(),
+            user.hasPassword(),
+            user.getTheme() != null ? user.getTheme().name() : "SYSTEM"
         );
     }
 

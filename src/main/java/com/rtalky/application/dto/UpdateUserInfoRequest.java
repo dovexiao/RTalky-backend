@@ -18,4 +18,9 @@ public class UpdateUserInfoRequest {
     
     @Size(max = 500000, message = "头像base64数据过大，请选择较小的图片（建议小于375KB）")
     private String avatar;
+
+    /**
+     * 主题偏好：LIGHT/DARK/SYSTEM
+     */
+    private String theme;
 }

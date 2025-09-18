@@ -26,5 +26,6 @@ public class LoginResponse {
         private String nickname;
         private String avatar; // base64编码的头像数据
         private String bio;
+        private String theme; // 主题偏好：LIGHT/DARK/SYSTEM
     }
 }

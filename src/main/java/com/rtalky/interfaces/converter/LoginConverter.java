@@ -35,6 +35,7 @@ public interface LoginConverter {
         profile.setNickname(user.getNickname());
         profile.setAvatar(user.getAvatar());
         profile.setBio(user.getBio());
+        profile.setTheme(user.getTheme() != null ? user.getTheme().name() : "SYSTEM");
         return profile;
     }
 

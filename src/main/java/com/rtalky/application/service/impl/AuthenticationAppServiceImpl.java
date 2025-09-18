@@ -406,7 +406,8 @@ public class AuthenticationAppServiceImpl implements AuthenticationAppService {
                 user.getNickname(),
                 user.getBio(),
                 user.getAvatar(),
-                user.hasPassword()
+                user.hasPassword(),
+                user.getTheme() != null ? user.getTheme().name() : "SYSTEM"
             );
 
         } catch (SessionValidationException e) {
@@ -476,6 +477,20 @@ public class AuthenticationAppServiceImpl implements AuthenticationAppService {
                 }
             }
 
+            // 更新主题（如果提供且合法）
+            if (request.getTheme() != null && !request.getTheme().trim().isEmpty()) {
+                try {
+                    com.rtalky.domain.model.ThemePreference themePref = com.rtalky.domain.model.ThemePreference.valueOf(request.getTheme().trim().toUpperCase());
+                    user.setTheme(themePref);
+                    hasUpdates = true;
+                    log.debug("更新用户主题: userId={}, theme={}", userId, themePref.name());
+                } catch (IllegalArgumentException iae) {
+                    log.warn("无效的主题偏好: userId={}, theme={}", userId, request.getTheme());
+                    throw new SessionValidationException(SessionValidationException.SessionValidationErrorCode.UNKNOWN_ERROR,
+                        "主题参数无效，可选值：LIGHT/DARK/SYSTEM");
+                }
+            }
+
             if (!hasUpdates) {
                 log.warn("没有提供任何需要更新的字段: userId={}", userId);
                 throw new SessionValidationException(SessionValidationException.SessionValidationErrorCode.UNKNOWN_ERROR,
@@ -496,7 +511,8 @@ public class AuthenticationAppServiceImpl implements AuthenticationAppService {
                 user.getNickname(),
                 user.getBio(),
                 user.getAvatar(),
-                user.hasPassword()
+                user.hasPassword(),
+                user.getTheme() != null ? user.getTheme().name() : "SYSTEM"
             );
 
         } catch (SessionValidationException e) {

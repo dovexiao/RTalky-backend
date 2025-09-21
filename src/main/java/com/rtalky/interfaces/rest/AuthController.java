@@ -595,75 +595,118 @@ public class AuthController {
     /**
      * 退出登录
      */
-//    @PostMapping("/logout")
-//    @Operation(
-//        summary = "退出登录",
-//        description = "使用会话令牌退出当前用户登录状态"
-//    )
-//    @ApiResponses(value = {
-//        @ApiResponse(
-//            responseCode = "200",
-//            description = "退出成功",
-//            content = @Content(
-//                mediaType = "application/json",
-//                schema = @Schema(implementation = ResponseBuilder.SimpleResponse.class),
-//                examples = @ExampleObject(
-//                    name = "退出成功",
-//                    value = "{\"success\":true,\"message\":\"退出登录成功\",\"timestamp\":\"2024-01-01T12:00:00\"}"
-//                )
-//            )
-//        ),
-//        @ApiResponse(
-//            responseCode = "400",
-//            description = "请求参数错误",
-//            content = @Content(
-//                mediaType = "application/json",
-//                schema = @Schema(implementation = ResponseBuilder.SimpleResponse.class),
-//                examples = @ExampleObject(
-//                    name = "无效授权头",
-//                    value = "{\"success\":false,\"message\":\"无效的授权头\",\"timestamp\":\"2024-01-01T12:00:00\"}"
-//                )
-//            )
-//        ),
-//        @ApiResponse(
-//            responseCode = "500",
-//            description = "退出失败",
-//            content = @Content(
-//                mediaType = "application/json",
-//                schema = @Schema(implementation = ResponseBuilder.SimpleResponse.class),
-//                examples = @ExampleObject(
-//                    name = "退出失败",
-//                    value = "{\"success\":false,\"message\":\"退出登录失败\",\"timestamp\":\"2024-01-01T12:00:00\"}"
-//                )
-//            )
-//        )
-//    })
-//    public ResponseEntity<?> logout(
-//        @Parameter(
-//            description = "Bearer Token，格式：Bearer {token}",
-//            required = true,
-//            example = "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-//        )
-//        @RequestHeader("Authorization") String authorization
-//    ) {
-//        String sessionToken = extractTokenFromHeader(authorization);
-//
-//        if (sessionToken == null) {
-//            return ResponseEntity.badRequest()
-//                    .body(responseBuilder.buildSimpleResponse(false, "无效的授权头"));
-//        }
-//
-//        boolean result = authenticationAppService.logout(sessionToken);
-//
-//        if (result) {
-//            log.info("退出登录成功: sessionToken={}", sessionToken);
-//            return ResponseEntity.ok(responseBuilder.buildSimpleResponse(true, "退出登录成功"));
-//        } else {
-//            log.warn("退出登录失败: sessionToken={}", sessionToken);
-//            return ResponseEntity.internalServerError()
-//                    .body(responseBuilder.buildSimpleResponse(false, "退出登录失败"));
-//        }
-//    }
+    @PostMapping("/logout")
+    @Operation(
+        summary = "退出登录",
+        description = "使用会话令牌退出当前用户登录状态，验证会话有效性后清除会话缓存"
+    )
+    @ApiResponses(value = {
+        @ApiResponse(
+            responseCode = "200",
+            description = "退出成功",
+            content = @Content(
+                mediaType = "application/json",
+                schema = @Schema(implementation = ResponseBuilder.SimpleResponse.class),
+                examples = @ExampleObject(
+                    name = "退出成功",
+                    value = "{\"success\":true,\"message\":\"退出登录成功\",\"timestamp\":\"2024-01-01T12:00:00\"}"
+                )
+            )
+        ),
+        @ApiResponse(
+            responseCode = "400",
+            description = "请求参数错误",
+            content = @Content(
+                mediaType = "application/json",
+                schema = @Schema(implementation = ResponseBuilder.SimpleResponse.class),
+                examples = @ExampleObject(
+                    name = "无效授权头",
+                    value = "{\"success\":false,\"message\":\"Authorization头格式无效\",\"timestamp\":\"2024-01-01T12:00:00\"}"
+                )
+            )
+        ),
+        @ApiResponse(
+            responseCode = "401",
+            description = "会话验证失败",
+            content = @Content(
+                mediaType = "application/json",
+                schema = @Schema(implementation = ResponseBuilder.SimpleResponse.class),
+                examples = @ExampleObject(
+                    name = "会话已过期",
+                    value = "{\"success\":false,\"message\":\"会话令牌不存在或已过期\",\"timestamp\":\"2024-01-01T12:00:00\"}"
+                )
+            )
+        ),
+        @ApiResponse(
+            responseCode = "500",
+            description = "退出失败",
+            content = @Content(
+                mediaType = "application/json",
+                schema = @Schema(implementation = ResponseBuilder.SimpleResponse.class),
+                examples = @ExampleObject(
+                    name = "退出失败",
+                    value = "{\"success\":false,\"message\":\"退出登录失败\",\"timestamp\":\"2024-01-01T12:00:00\"}"
+                )
+            )
+        )
+    })
+    public ResponseEntity<ResponseBuilder.SimpleResponse> logout(
+        @Parameter(
+            description = "Bearer Token，格式：Bearer {token}",
+            required = true,
+            example = "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+        )
+        @RequestHeader("Authorization") String authorization
+    ) {
+        try {
+            // 1. 提取会话令牌
+            String sessionToken = extractTokenFromHeader(authorization);
+            if (sessionToken == null) {
+                log.warn("退出登录失败: Authorization头格式无效");
+                return ResponseEntity.badRequest()
+                        .body(responseBuilder.buildSimpleResponse(false, "Authorization头格式无效"));
+            }
+
+            // 2. 验证会话
+            String userId = authenticationAppService.validateSession(sessionToken);
+            
+            // 3. 执行退出登录
+            boolean result = authenticationAppService.logout(sessionToken);
+            
+            if (result) {
+                log.info("退出登录成功: userId={}, sessionToken={}", userId, sessionToken);
+                return ResponseEntity.ok(responseBuilder.buildSimpleResponse(true, "退出登录成功"));
+            } else {
+                log.warn("退出登录失败: userId={}, sessionToken={}", userId, sessionToken);
+                return ResponseEntity.internalServerError()
+                        .body(responseBuilder.buildSimpleResponse(false, "退出登录失败"));
+            }
+
+        } catch (SessionValidationException e) {
+            log.warn("退出登录会话验证异常: errorCode={}, message={}", e.getErrorCode().getCode(), e.getMessage());
+
+            if (e.getErrorCode() == SessionValidationException.SessionValidationErrorCode.TOKEN_REQUIRED ||
+                e.getErrorCode() == SessionValidationException.SessionValidationErrorCode.INVALID_TOKEN_FORMAT) {
+                return ResponseEntity.badRequest()
+                        .body(responseBuilder.buildSimpleResponse(false, e.getMessage()));
+            } else if (e.getErrorCode() == SessionValidationException.SessionValidationErrorCode.TOKEN_NOT_FOUND ||
+                       e.getErrorCode() == SessionValidationException.SessionValidationErrorCode.TOKEN_EXPIRED ||
+                       e.getErrorCode() == SessionValidationException.SessionValidationErrorCode.TOKEN_INVALID ||
+                       e.getErrorCode() == SessionValidationException.SessionValidationErrorCode.USER_NOT_FOUND ||
+                       e.getErrorCode() == SessionValidationException.SessionValidationErrorCode.USER_DISABLED ||
+                       e.getErrorCode() == SessionValidationException.SessionValidationErrorCode.USER_LOCKED) {
+                return ResponseEntity.status(401)
+                        .body(responseBuilder.buildSimpleResponse(false, e.getMessage()));
+            } else {
+                return ResponseEntity.internalServerError()
+                        .body(responseBuilder.buildSimpleResponse(false, e.getMessage()));
+            }
+        } catch (Exception e) {
+            log.error("退出登录系统异常: error={}", e.getMessage(), e);
+            return ResponseEntity.internalServerError()
+                    .body(responseBuilder.buildSimpleResponse(false, "系统异常，请稍后重试"));
+        }
+    }
 
     /**
      * 验证会话

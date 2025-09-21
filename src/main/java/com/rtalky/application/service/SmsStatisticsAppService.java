@@ -29,15 +29,3 @@ public interface SmsStatisticsAppService {
      */
     SmsStatistics getOverallStatistics();
 }
-
-
-
-
-
-
-
-
-
-
-
-

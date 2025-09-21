@@ -124,13 +124,13 @@ public class AuthController {
         log.info("请求发送短信验证码: phoneNumber={}", request.getPhoneNumber());
 
         try {
-        boolean result = authenticationAppService.sendSmsCode(request);
+            boolean result = authenticationAppService.sendSmsCode(request);
 
-        if (result) {
-                log.info("短信验证码发送成功: phoneNumber={}, codeDigits={}", request.getPhoneNumber(), smsCodeDigits);
-                return ResponseEntity.ok(responseBuilder.buildSmsSendSuccessResponse("短信验证码发送成功", smsCodeDigits));
-        } else {
-            log.error("短信验证码发送失败: phoneNumber={}", request.getPhoneNumber());
+            if (result) {
+                    log.info("短信验证码发送成功: phoneNumber={}, codeDigits={}", request.getPhoneNumber(), smsCodeDigits);
+                    return ResponseEntity.ok(responseBuilder.buildSmsSendSuccessResponse("短信验证码发送成功", smsCodeDigits));
+            } else {
+                log.error("短信验证码发送失败: phoneNumber={}", request.getPhoneNumber());
                 return ResponseEntity.internalServerError()
                         .body(responseBuilder.buildSmsSendFailureResponse("短信验证码发送失败，请稍后重试"));
             }
@@ -2010,7 +2010,7 @@ public class AuthController {
             return ResponseEntity.badRequest()
                     .body(new SmsSendResponse(false, e.getMessage(), java.time.LocalDateTime.now(), null));
         } catch (Exception e) {
-            log.error("发送换绑手机号短信验证码系统异常: newPhoneNumber={}, error={}", 
+            log.error("发送换绑手机号短信验证码系统异常: newPhoneNumber={}, error={}",
                 request.getNewPhoneNumber(), e.getMessage(), e);
             return ResponseEntity.internalServerError()
                     .body(new SmsSendResponse(false, "系统异常，请稍后重试", java.time.LocalDateTime.now(), null));

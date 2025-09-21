@@ -664,7 +664,7 @@ public class AuthenticationAppServiceImpl implements AuthenticationAppService {
     private void publishUserDeletedEvent(User user, String deviceFingerprint) {
         UserDeletedEvent event = new UserDeletedEvent(this, user, deviceFingerprint);
         eventPublisher.publishEvent(event);
-        log.debug("发布用户注销事件: userId={}, phoneNumber={}, deletionId={}", 
+        log.debug("发布用户注销事件: userId={}, phoneNumber={}, deletionId={}",
             user.getUserId(), user.getPhoneNumber(), user.getDeletionId());
     }
 
@@ -1019,7 +1019,7 @@ public class AuthenticationAppServiceImpl implements AuthenticationAppService {
             cacheService.delete(phoneLoginKey);
             cacheService.delete(deviceSmsKey);
             cacheService.delete(deviceLoginKey);
-            log.debug("清理计数键: phoneSmsKey={}, phoneLoginKey={}, deviceSmsKey={}, deviceLoginKey={}", 
+            log.debug("清理计数键: phoneSmsKey={}, phoneLoginKey={}, deviceSmsKey={}, deviceLoginKey={}",
                 phoneSmsKey, phoneLoginKey, deviceSmsKey, deviceLoginKey);
 
             // 清理限制键
@@ -1031,13 +1031,13 @@ public class AuthenticationAppServiceImpl implements AuthenticationAppService {
             cacheService.delete(deviceSmsLimitKey);
             cacheService.delete(phoneLoginLimitKey);
             cacheService.delete(phoneSmsLimitKey);
-            log.debug("清理限制键: deviceLoginLimitKey={}, deviceSmsLimitKey={}, phoneLoginLimitKey={}, phoneSmsLimitKey={}", 
+            log.debug("清理限制键: deviceLoginLimitKey={}, deviceSmsLimitKey={}, phoneLoginLimitKey={}, phoneSmsLimitKey={}",
                 deviceLoginLimitKey, deviceSmsLimitKey, phoneLoginLimitKey, phoneSmsLimitKey);
 
             // 添加手机号限制
             phoneRestrictionService.addPhoneRestriction(
-                user.getPhoneNumber(), 
-                request.getDeletionReason(), 
+                user.getPhoneNumber(),
+                request.getDeletionReason(),
                 user.getDeletionId()
             );
 
@@ -1259,7 +1259,7 @@ public class AuthenticationAppServiceImpl implements AuthenticationAppService {
                 log.debug("更新会话手机号: sessionKey={}, newPhoneNumber={}", sessionKey, newPhoneNumber);
             }
         } catch (Exception e) {
-            log.warn("更新会话手机号失败: sessionToken={}, newPhoneNumber={}, error={}", 
+            log.warn("更新会话手机号失败: sessionToken={}, newPhoneNumber={}, error={}",
                 sessionToken, newPhoneNumber, e.getMessage());
         }
     }
@@ -1272,23 +1272,23 @@ public class AuthenticationAppServiceImpl implements AuthenticationAppService {
             // 清理验证码缓存
             String smsCodeKey = "sms:code:" + oldPhoneNumber + ":" + deviceFingerprint;
             cacheService.delete(smsCodeKey);
-            
+
             // 清理密码缓存
             String passwordKey = "password:setup:" + oldPhoneNumber + ":" + deviceFingerprint;
             cacheService.delete(passwordKey);
-            
+
             // 清理计数键
             String phoneSmsKey = "opcount:sms:phone:" + oldPhoneNumber;
             String phoneLoginKey = "opcount:login:phone:" + oldPhoneNumber;
             cacheService.delete(phoneSmsKey);
             cacheService.delete(phoneLoginKey);
-            
+
             // 清理限制键
             String phoneLoginLimitKey = "limit:login:phone:" + oldPhoneNumber;
             String phoneSmsLimitKey = "limit:sms:phone:" + oldPhoneNumber;
             cacheService.delete(phoneLoginLimitKey);
             cacheService.delete(phoneSmsLimitKey);
-            
+
             log.debug("清理旧手机号缓存完成: oldPhoneNumber={}", oldPhoneNumber);
         } catch (Exception e) {
             log.warn("清理旧手机号缓存失败: oldPhoneNumber={}, error={}", oldPhoneNumber, e.getMessage());

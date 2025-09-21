@@ -24,7 +24,7 @@ public class SmsStatisticsServiceImpl implements SmsStatisticsService {
         SmsStatistics statistics = getOrCreateStatistics(phoneNumber, deviceFingerprint);
         statistics.recordSuccess();
         smsStatisticsRepository.save(statistics);
-        
+
         log.info("记录短信发送成功: phoneNumber={}, deviceFingerprint={}", phoneNumber, deviceFingerprint);
     }
 
@@ -34,8 +34,8 @@ public class SmsStatisticsServiceImpl implements SmsStatisticsService {
         SmsStatistics statistics = getOrCreateStatistics(phoneNumber, deviceFingerprint);
         statistics.recordFailure();
         smsStatisticsRepository.save(statistics);
-        
-        log.info("记录短信发送失败: phoneNumber={}, deviceFingerprint={}, reason={}", 
+
+        log.info("记录短信发送失败: phoneNumber={}, deviceFingerprint={}, reason={}",
                 phoneNumber, deviceFingerprint, failureReason);
     }
 
@@ -70,15 +70,3 @@ public class SmsStatisticsServiceImpl implements SmsStatisticsService {
                 });
     }
 }
-
-
-
-
-
-
-
-
-
-
-
-

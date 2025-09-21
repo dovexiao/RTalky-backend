@@ -322,12 +322,30 @@ public class AuthenticationAppServiceImpl implements AuthenticationAppService {
     @Override
     @Transactional
     public boolean logout(String sessionToken) {
-        // 从缓存中删除会话
-        boolean removed = cacheService.delete("session:" + sessionToken);
-        if (removed) {
-            log.info("用户退出登录: sessionToken={}", sessionToken);
+        try {
+            // 1. 验证会话
+            String userId = validateSession(sessionToken);
+            
+            // 2. 从用户会话集合中移除
+            authenticationService.removeUserSession(userId, sessionToken);
+            
+            // 3. 删除会话
+            boolean removed = cacheService.delete("session:" + sessionToken);
+            
+            if (removed) {
+                log.info("用户退出登录成功: userId={}, sessionToken={}", userId, sessionToken);
+            } else {
+                log.warn("用户退出登录失败: 会话删除失败, userId={}, sessionToken={}", userId, sessionToken);
+            }
+            
+            return removed;
+        } catch (SessionValidationException e) {
+            log.warn("退出登录失败: 会话验证异常 - {}, sessionToken={}", e.getMessage(), sessionToken);
+            return false;
+        } catch (Exception e) {
+            log.error("退出登录异常: sessionToken={}", sessionToken, e);
+            return false;
         }
-        return removed;
     }
 
     @Override
@@ -637,9 +655,18 @@ public class AuthenticationAppServiceImpl implements AuthenticationAppService {
      * 生成会话令牌
      */
     private String generateSessionToken(User user) {
+        // 1. 清理该用户的所有旧会话（互斥登录）
+        authenticationService.clearUserSessions(user.getUserId());
+        
+        // 2. 生成新会话令牌
         String sessionToken = UUID.randomUUID().toString();
-        // 存储会话到缓存（使用配置的过期时间）
+        
+        // 3. 存储新会话
         cacheService.set("session:" + sessionToken, user.getUserId(), sessionExpireHours, TimeUnit.HOURS);
+        
+        // 4. 添加到用户会话集合
+        authenticationService.addUserSession(user.getUserId(), sessionToken);
+        
         return sessionToken;
     }
 

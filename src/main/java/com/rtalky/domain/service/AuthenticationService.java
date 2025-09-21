@@ -2,6 +2,8 @@ package com.rtalky.domain.service;
 
 import com.rtalky.domain.model.User;
 
+import java.util.Set;
+
 
 /**
  * 认证领域服务接口
@@ -194,4 +196,35 @@ public interface AuthenticationService {
      * @return 清除是否成功
      */
     boolean clearCachedNewPhoneForChange(String userId, String deviceFingerprint);
+
+    /**
+     * 清理用户的所有会话（互斥登录）
+     *
+     * @param userId 用户ID
+     */
+    void clearUserSessions(String userId);
+
+    /**
+     * 添加用户会话
+     *
+     * @param userId 用户ID
+     * @param sessionToken 会话令牌
+     */
+    void addUserSession(String userId, String sessionToken);
+
+    /**
+     * 移除用户会话
+     *
+     * @param userId 用户ID
+     * @param sessionToken 会话令牌
+     */
+    void removeUserSession(String userId, String sessionToken);
+
+    /**
+     * 获取用户的所有会话
+     *
+     * @param userId 用户ID
+     * @return 会话令牌集合
+     */
+    Set<String> getUserSessions(String userId);
 }

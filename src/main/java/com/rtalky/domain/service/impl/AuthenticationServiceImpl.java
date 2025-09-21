@@ -17,7 +17,9 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.util.HashSet;
 import java.util.Random;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import com.google.i18n.phonenumbers.PhoneNumberUtil;
 import com.google.i18n.phonenumbers.Phonenumber;
@@ -667,6 +669,70 @@ public class AuthenticationServiceImpl implements AuthenticationService {
             log.error("清除换绑手机号缓存异常: userId={}, deviceFingerprint={}, error={}", 
                 userId, deviceFingerprint, e.getMessage(), e);
             return false;
+        }
+    }
+
+    @Override
+    public void clearUserSessions(String userId) {
+        try {
+            String userSessionsKey = "user_sessions:" + userId;
+            Set<Object> userSessions = cacheService.setMembers(userSessionsKey);
+            
+            if (userSessions != null && !userSessions.isEmpty()) {
+                // 删除所有会话
+                for (Object sessionToken : userSessions) {
+                    cacheService.delete("session:" + sessionToken.toString());
+                }
+                // 清空用户会话集合
+                cacheService.delete(userSessionsKey);
+                log.info("清理用户会话成功: userId={}, sessionCount={}", userId, userSessions.size());
+            } else {
+                log.debug("用户没有活跃会话: userId={}", userId);
+            }
+        } catch (Exception e) {
+            log.warn("清理用户会话时发生异常: userId={}", userId, e);
+        }
+    }
+
+    @Override
+    public void addUserSession(String userId, String sessionToken) {
+        try {
+            String userSessionsKey = "user_sessions:" + userId;
+            cacheService.setAdd(userSessionsKey, sessionToken);
+            // 设置过期时间（与会话过期时间一致）
+            cacheService.expire(userSessionsKey, 24, TimeUnit.HOURS);
+            log.debug("添加用户会话成功: userId={}, sessionToken={}", userId, sessionToken);
+        } catch (Exception e) {
+            log.warn("添加用户会话时发生异常: userId={}, sessionToken={}", userId, sessionToken, e);
+        }
+    }
+
+    @Override
+    public void removeUserSession(String userId, String sessionToken) {
+        try {
+            String userSessionsKey = "user_sessions:" + userId;
+            cacheService.setRemove(userSessionsKey, sessionToken);
+            log.debug("移除用户会话成功: userId={}, sessionToken={}", userId, sessionToken);
+        } catch (Exception e) {
+            log.warn("移除用户会话时发生异常: userId={}, sessionToken={}", userId, sessionToken, e);
+        }
+    }
+
+    @Override
+    public Set<String> getUserSessions(String userId) {
+        try {
+            String userSessionsKey = "user_sessions:" + userId;
+            Set<Object> sessions = cacheService.setMembers(userSessionsKey);
+            Set<String> result = new HashSet<>();
+            if (sessions != null) {
+                for (Object session : sessions) {
+                    result.add(session.toString());
+                }
+            }
+            return result;
+        } catch (Exception e) {
+            log.warn("获取用户会话时发生异常: userId={}", userId, e);
+            return new HashSet<>();
         }
     }
 }

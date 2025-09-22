@@ -36,8 +36,10 @@ public class Note {
 
     /**
      * 显示ID，格式：N+自增ID（不足三位前补零）
+     * 在首次插入后由JPA回调基于自增id生成并更新。
+     * 注意：列允许为空以便首次INSERT成功，然后在PostPersist中补齐。
      */
-    @Column(name = "display_id", unique = true, nullable = false, length = 10)
+    @Column(name = "display_id", unique = true, nullable = true, length = 10)
     private String displayId;
 
     /**
@@ -100,8 +102,7 @@ public class Note {
         note.setCreatedTime(LocalDateTime.now());
         note.setUpdatedTime(LocalDateTime.now());
         note.setDeleted(false);
-        // displayId将在保存时由数据库生成，这里先设置为null
-        note.setDisplayId(null);
+        // displayId由数据库生成列自动计算，不需要手动设置
         return note;
     }
 
@@ -190,10 +191,11 @@ public class Note {
         return List.of();
     }
 
-    // 工具方法：生成displayId
-    public void generateDisplayId() {
-        if (this.id != null) {
+    @PostPersist
+    private void populateDisplayIdAfterInsert() {
+        if (this.displayId == null && this.id != null) {
             this.displayId = "N" + String.format("%03d", this.id);
+            // 修改托管实体字段，JPA 将在当前事务内发出 UPDATE 以持久化该变化
         }
     }
 }

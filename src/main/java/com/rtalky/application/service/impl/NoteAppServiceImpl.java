@@ -88,12 +88,13 @@ public class NoteAppServiceImpl implements NoteAppService {
         Note note = Note.newNote(userId, request.getTitle(), request.getDescription(), 
                                 request.getContent(), request.getTags());
         
-        // 5. 保存笔记
+        // 5. 保存笔记（displayId由数据库触发器自动生成）
         Note savedNote = noteRepository.save(note);
         
-        // 6. 生成displayId
-        savedNote.generateDisplayId();
-        savedNote = noteRepository.save(savedNote);
+        // 6. 刷新实体以获取触发器生成的displayId
+        // 触发器在INSERT时生成displayId，需要刷新实体才能获取到
+        savedNote = noteRepository.findByNoteId(savedNote.getNoteId())
+            .orElseThrow(() -> new NoteException(NoteException.NoteErrorCode.NOTE_NOT_FOUND, "笔记保存后未找到"));
         
         // 7. 发布笔记创建事件
         eventPublisher.publishEvent(new NoteCreatedEvent(

@@ -67,7 +67,7 @@ public class NoteServiceImpl implements NoteService {
             if (tag == null || tag.trim().isEmpty()) {
                 return false; // 标签不能为空
             }
-            if (tag.length() > 10) {
+            if (tag.length() > 20) {
                 return false;
             }
         }

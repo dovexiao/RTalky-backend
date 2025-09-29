@@ -5,6 +5,9 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import org.jmolecules.ddd.annotation.AggregateRoot;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -143,8 +146,8 @@ public class Note {
                 throw new IllegalArgumentException("标签数量不能超过20个");
             }
             for (String tag : newTags) {
-                if (tag != null && tag.length() > 10) {
-                    throw new IllegalArgumentException("标签长度不能超过10个字符");
+                if (tag != null && tag.length() > 20) {
+                    throw new IllegalArgumentException("标签长度不能超过20个字符");
                 }
             }
         }
@@ -178,8 +181,13 @@ public class Note {
         if (tags == null || tags.isEmpty()) {
             return "[]";
         }
-        // TODO: 实现JSON转换逻辑
-        return "[]";
+        try {
+            ObjectMapper mapper = new ObjectMapper();
+            return mapper.writeValueAsString(tags);
+        } catch (JsonProcessingException e) {
+            // 如果序列化失败，返回空数组
+            return "[]";
+        }
     }
 
     // 工具方法：将JSON字符串转换为标签列表
@@ -187,8 +195,13 @@ public class Note {
         if (tagsJson == null || tagsJson.trim().isEmpty()) {
             return List.of();
         }
-        // TODO: 实现JSON解析逻辑
-        return List.of();
+        try {
+            ObjectMapper mapper = new ObjectMapper();
+            return mapper.readValue(tagsJson, new TypeReference<List<String>>() {});
+        } catch (JsonProcessingException e) {
+            // 如果反序列化失败，返回空列表
+            return List.of();
+        }
     }
 
     @PostPersist

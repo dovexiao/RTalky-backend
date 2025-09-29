@@ -23,5 +23,5 @@ public class CreateNoteRequest {
     private String content;
 
     @Size(max = 20, message = "标签数量不能超过20个")
-    private List<@Size(max = 10, message = "标签长度不能超过10个字符") String> tags;
+    private List<@Size(max = 20, message = "标签长度不能超过20个字符") String> tags;
 }

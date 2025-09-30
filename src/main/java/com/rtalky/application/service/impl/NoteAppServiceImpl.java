@@ -88,7 +88,7 @@ public class NoteAppServiceImpl implements NoteAppService {
         Note note = Note.newNote(userId, request.getTitle(), request.getDescription(), 
                                 request.getContent(), request.getTags());
         
-        // 5. 保存笔记（displayId由数据库触发器自动生成）
+        // 5. 保存笔记（@PostPersist会生成基于id的displayId）
         Note savedNote = noteRepository.save(note);
         
         // 6. 刷新实体以获取触发器生成的displayId

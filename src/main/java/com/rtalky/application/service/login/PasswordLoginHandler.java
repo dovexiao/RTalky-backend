@@ -26,7 +26,7 @@ public class PasswordLoginHandler implements LoginHandler {
     }
 
     @Override
-    public User handle(String phoneNumber, String deviceFingerprint, boolean agreedToTerms, String deviceInfo) {
+    public LoginResult handle(String phoneNumber, String deviceFingerprint, boolean agreedToTerms, String deviceInfo) {
         Optional<User> userOptional = userRepository.findByPhoneNumber(phoneNumber);
         if (userOptional.isEmpty()) {
             throw new PasswordLoginException(PasswordLoginException.PasswordLoginErrorCode.USER_NOT_FOUND,
@@ -45,7 +45,7 @@ public class PasswordLoginHandler implements LoginHandler {
         }
         user = userRepository.save(user);
         log.info("密码登录使用已有用户: userId={}, phoneNumber={}", user.getUserId(), phoneNumber);
-        return user;
+        return new LoginResult(user, false); // 密码登录不会创建新用户
     }
 
     private static User getUser(Optional<User> userOptional) {

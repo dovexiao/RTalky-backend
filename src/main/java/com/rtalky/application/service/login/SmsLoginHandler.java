@@ -24,20 +24,20 @@ public class SmsLoginHandler implements LoginHandler {
     }
 
     @Override
-    public User handle(String phoneNumber, String deviceFingerprint, boolean agreedToTerms, String deviceInfo) {
+    public LoginResult handle(String phoneNumber, String deviceFingerprint, boolean agreedToTerms, String deviceInfo) {
         Optional<User> userOptional = userRepository.findByPhoneNumber(phoneNumber);
         if (userOptional.isEmpty()) {
             // Register new user for SMS login
             User newUser = User.newUser(phoneNumber, deviceFingerprint, agreedToTerms, AuthMethod.SMS);
             newUser = userRepository.save(newUser);
             log.info("SMS登录注册新用户: userId={}, phoneNumber={}", newUser.getUserId(), phoneNumber);
-            return newUser;
+            return new LoginResult(newUser, true);
         }
 
         User user = getUser(agreedToTerms, userOptional);
         user = userRepository.save(user);
         log.info("SMS登录使用已有用户: userId={}, phoneNumber={}", user.getUserId(), phoneNumber);
-        return user;
+        return new LoginResult(user, false);
     }
 
     private static User getUser(boolean agreedToTerms, Optional<User> userOptional) {

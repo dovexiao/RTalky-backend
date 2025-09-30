@@ -187,7 +187,9 @@ public class AuthenticationAppServiceImpl implements AuthenticationAppService {
 
             // 路由到对应登录处理器
             LoginHandler handler = resolveLoginHandler(AuthMethod.SMS);
-            User user = handler.handle(request.getPhoneNumber(), deviceFingerprint, request.getAgreedToTerms(), deviceInfo);
+            LoginHandler.LoginResult loginResult = handler.handle(request.getPhoneNumber(), deviceFingerprint, request.getAgreedToTerms(), deviceInfo);
+            User user = loginResult.getUser();
+            boolean isNewUser = loginResult.isNewUser();
 
             // 更新最后登录时间并保存
             user.updateLastLoginTime();
@@ -197,7 +199,7 @@ public class AuthenticationAppServiceImpl implements AuthenticationAppService {
             String sessionToken = generateSessionToken(user);
 
             // 发布事件
-            publishLoginEvent(user, AuthMethod.SMS, deviceFingerprint, false);
+            publishLoginEvent(user, AuthMethod.SMS, deviceFingerprint, isNewUser);
 
             // 成功登录记录
             createLoginRecord(user, AuthMethod.SMS, deviceFingerprint, true, null, deviceInfo);
@@ -280,7 +282,9 @@ public class AuthenticationAppServiceImpl implements AuthenticationAppService {
 
             // 路由到对应登录处理器
             LoginHandler handler = resolveLoginHandler(AuthMethod.PASSWORD);
-            User user = handler.handle(request.getPhoneNumber(), deviceFingerprint, request.getAgreedToTerms(), deviceInfo);
+            LoginHandler.LoginResult loginResult = handler.handle(request.getPhoneNumber(), deviceFingerprint, request.getAgreedToTerms(), deviceInfo);
+            User user = loginResult.getUser();
+            boolean isNewUser = loginResult.isNewUser();
 
             // 更新最后登录时间并保存
             user.updateLastLoginTime();
@@ -290,7 +294,7 @@ public class AuthenticationAppServiceImpl implements AuthenticationAppService {
             String sessionToken = generateSessionToken(user);
 
             // 发布事件
-            publishLoginEvent(user, AuthMethod.PASSWORD, deviceFingerprint, false);
+            publishLoginEvent(user, AuthMethod.PASSWORD, deviceFingerprint, isNewUser);
 
             // 成功登录记录
             createLoginRecord(user, AuthMethod.PASSWORD, deviceFingerprint, true, null, deviceInfo);

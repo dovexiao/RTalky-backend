@@ -18,7 +18,28 @@ public interface LoginHandler {
      * Method-specific validations (e.g., SMS code, password check) should be
      * performed by the caller before invoking this method.
      */
-    User handle(String phoneNumber, String deviceFingerprint, boolean agreedToTerms, String deviceInfo);
+    LoginResult handle(String phoneNumber, String deviceFingerprint, boolean agreedToTerms, String deviceInfo);
+
+    /**
+     * 登录结果类
+     */
+    class LoginResult {
+        private final User user;
+        private final boolean isNewUser;
+
+        public LoginResult(User user, boolean isNewUser) {
+            this.user = user;
+            this.isNewUser = isNewUser;
+        }
+
+        public User getUser() {
+            return user;
+        }
+
+        public boolean isNewUser() {
+            return isNewUser;
+        }
+    }
 }
 
 
